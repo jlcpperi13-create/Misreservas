@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MisReservas — Reserva tu trayecto</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#171A1F">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#171A1F;
+    --surface:#1F242B;
+    --surface-raised:#262C34;
+    --text:#F3F1EA;
+    --text-muted:#8A9099;
+    --amber:#E8A33D;
+    --teal:#4FA3A0;
+    --red:#D9634B;
+    --divider:rgba(255,255,255,0.08);
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:0 0 60px;
+  }
+  .wrap{
+    width:100%;
+    max-width:480px;
+    padding:28px 20px 40px;
+  }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    padding-bottom:18px;
+    border-bottom:1px solid var(--divider);
+    margin-bottom:28px;
+  }
+  .brand{
+    font-size:18px;
+    font-weight:600;
+    letter-spacing:0.01em;
+  }
+  .brand span{color:var(--amber);}
+  #clock{
+    font-family:'IBM Plex Mono', monospace;
+    font-variant-numeric:tabular-nums;
+    color:var(--text-muted);
+    font-size:14px;
+  }
+  h1{
+    font-size:22px;
+    font-weight:500;
+    line-height:1.3;
+    margin:0 0 6px;
+  }
+  .sub{
+    color:var(--text-muted);
+    font-size:14px;
+    margin:0 0 28px;
+    line-height:1.5;
+  }
+  form{display:flex;flex-direction:column;gap:16px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  label{
+    font-size:13px;
+    color:var(--text-muted);
+  }
+  input[type=date], input[type=time], input[type=text], input[type=tel]{
+    background:var(--surface);
+    border:1px solid var(--divider);
+    border-radius:var(--radius);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:16px;
+    padding:13px 14px;
+    outline:none;
+    transition:border-color .15s ease;
+  }
+  input:focus{border-color:var(--amber);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .stepper{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--surface);
+    border:1px solid var(--divider);
+    border-radius:var(--radius);
+    padding:8px 14px;
+  }
+  .stepper .label{font-size:15px;}
+  .stepper .controls{display:flex;align-items:center;gap:16px;}
+  .stepper button{
+    width:30px;height:30px;
+    border-radius:50%;
+    border:1px solid var(--divider);
+    background:var(--surface-raised);
+    color:var(--text);
+    font-size:16px;
+    cursor:pointer;
+  }
+  .stepper button:active{border-color:var(--amber);}
+  .stepper .count{
+    font-family:'IBM Plex Mono', monospace;
+    font-variant-numeric:tabular-nums;
+    min-width:16px;
+    text-align:center;
+  }
+  .submit{
+    margin-top:10px;
+    background:var(--amber);
+    color:#1A1409;
+    border:none;
+    border-radius:var(--radius);
+    padding:15px;
+    font-size:16px;
+    font-weight:600;
+    font-family:'IBM Plex Sans', sans-serif;
+    cursor:pointer;
+  }
+  .submit:disabled{opacity:0.5;cursor:default;}
+  .error{color:var(--red);font-size:13px;min-height:16px;}
+
+  /* Ticket de confirmación */
+  .ticket{display:none;}
+  .ticket.show{display:block;}
+  .ticket .card{
+    background:var(--surface);
+    border:1px solid var(--divider);
+    border-radius:var(--radius);
+    padding:24px 22px;
+  }
+  .ticket .ok{color:var(--teal);font-size:13px;letter-spacing:.02em;margin-bottom:4px;}
+  .ticket h2{font-size:20px;font-weight:500;margin:0 0 18px;}
+  .ticket dl{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0;}
+  .ticket dt{color:var(--text-muted);font-size:13px;}
+  .ticket dd{margin:0;font-size:14px;}
+  .ticket .code{
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--amber);
+  }
+  .divider-dash{border-top:1px dashed var(--divider);margin:18px 0;}
+  .newres{
+    margin-top:16px;
+    background:none;
+    border:1px solid var(--divider);
+    color:var(--text-muted);
+    padding:11px;
+    width:100%;
+    border-radius:var(--radius);
+    font-family:'IBM Plex Sans', sans-serif;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Mis<span>Reservas</span></div>
+    <div id="clock">--:--</div>
+  </header>
+
+  <div id="formView">
+    <h1>Reserva tu trayecto</h1>
+    <p class="sub">Rellena los datos y confirmamos tu taxi en cuanto lo revisemos.</p>
+
+    <form id="bookingForm">
+      <div class="row2">
+        <div class="field">
+          <label for="fecha">Fecha</label>
+          <input type="date" id="fecha" required>
+        </div>
+        <div class="field">
+          <label for="hora">Hora</label>
+          <input type="time" id="hora" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="origen">Origen</label>
+        <input type="text" id="origen" placeholder="Ej. Calle Mayor, 12" required>
+      </div>
+
+      <div class="field">
+        <label for="destino">Destino</label>
+        <input type="text" id="destino" placeholder="Ej. Aeropuerto" required>
+      </div>
+
+      <div class="field">
+        <label for="nombre">Nombre</label>
+        <input type="text" id="nombre" placeholder="Tu nombre" required>
+      </div>
+
+      <div class="field">
+        <label for="telefono">Teléfono</label>
+        <input type="tel" id="telefono" placeholder="600 000 000" required>
+      </div>
+
+      <div class="stepper">
+        <span class="label">Pasajeros</span>
+        <div class="controls">
+          <button type="button" data-step="pasajeros" data-dir="-1">−</button>
+          <span class="count" id="pasajerosCount">1</span>
+          <button type="button" data-step="pasajeros" data-dir="1">+</button>
+        </div>
+      </div>
+
+      <div class="stepper">
+        <span class="label">Maletas</span>
+        <div class="controls">
+          <button type="button" data-step="maletas" data-dir="-1">−</button>
+          <span class="count" id="maletasCount">0</span>
+          <button type="button" data-step="maletas" data-dir="1">+</button>
+        </div>
+      </div>
+
+      <div class="error" id="formError"></div>
+      <button type="submit" class="submit" id="submitBtn">Confirmar reserva</button>
+    </form>
+  </div>
+
+  <div class="ticket" id="ticketView">
+    <div class="card">
+      <div class="ok">Reserva recibida</div>
+      <h2 id="ticketTitle">—</h2>
+      <dl>
+        <dt>Código</dt><dd class="code" id="tCode">—</dd>
+        <dt>Fecha</dt><dd id="tFecha">—</dd>
+        <dt>Hora</dt><dd id="tHora">—</dd>
+        <dt>Origen</dt><dd id="tOrigen">—</dd>
+        <dt>Destino</dt><dd id="tDestino">—</dd>
+        <dt>Pasajeros</dt><dd id="tPasajeros">—</dd>
+        <dt>Maletas</dt><dd id="tMaletas">—</dd>
+      </dl>
+      <div class="divider-dash"></div>
+      <p class="sub" style="margin:0;">Te avisaremos al <span id="tTelefono">—</span> si hay algún cambio.</p>
+    </div>
+    <button class="newres" id="newResBtn">Hacer otra reserva</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+  // Reloj en cabecera
+  function tick(){
+    const d = new Date();
+    document.getElementById('clock').textContent =
+      d.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+  }
+  tick(); setInterval(tick, 1000 * 30);
+
+  // Steppers pasajeros/maletas
+  let counts = {pasajeros:1, maletas:0};
+  document.querySelectorAll('[data-step]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.dataset.step;
+      const dir = parseInt(btn.dataset.dir, 10);
+      const min = key === 'pasajeros' ? 1 : 0;
+      const max = key === 'pasajeros' ? 8 : 8;
+      counts[key] = Math.min(max, Math.max(min, counts[key] + dir));
+      document.getElementById(key + 'Count').textContent = counts[key];
+    });
+  });
+
+  function generarCodigo(){
+    return 'R' + Math.random().toString(36).slice(2, 7).toUpperCase();
+  }
+
+  document.getElementById('bookingForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const errorEl = document.getElementById('formError');
+    const submitBtn = document.getElementById('submitBtn');
+    errorEl.textContent = '';
+
+    const fecha = document.getElementById('fecha').value;
+    const hora = document.getElementById('hora').value;
+    const origen = document.getElementById('origen').value.trim();
+    const destino = document.getElementById('destino').value.trim();
+    const nombre = document.getElementById('nombre').value.trim();
+    const telefono = document.getElementById('telefono').value.trim();
+
+    if(!fecha || !hora || !origen || !destino || !nombre || !telefono){
+      errorEl.textContent = 'Falta rellenar algún campo.';
+      return;
+    }
+
+    const fechaHora = new Date(`${fecha}T${hora}`);
+    if(fechaHora < new Date()){
+      errorEl.textContent = 'La fecha y hora ya han pasado.';
+      return;
+    }
+
+    const codigo = generarCodigo();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Enviando…';
+
+    try{
+      await db.collection('reservas').add({
+        codigo,
+        nombre,
+        telefono,
+        origen,
+        destino,
+        pasajeros: counts.pasajeros,
+        maletas: counts.maletas,
+        fechaHora: firebase.firestore.Timestamp.fromDate(fechaHora),
+        fechaTexto: fecha,
+        horaTexto: hora,
+        estado: 'pendiente',
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // Mostrar ticket
+      document.getElementById('tCode').textContent = codigo;
+      document.getElementById('tFecha').textContent = fecha.split('-').reverse().join('/');
+      document.getElementById('tHora').textContent = hora;
+      document.getElementById('tOrigen').textContent = origen;
+      document.getElementById('tDestino').textContent = destino;
+      document.getElementById('tPasajeros').textContent = counts.pasajeros;
+      document.getElementById('tMaletas').textContent = counts.maletas;
+      document.getElementById('tTelefono').textContent = telefono;
+      document.getElementById('ticketTitle').textContent = `${origen} → ${destino}`;
+
+      document.getElementById('formView').style.display = 'none';
+      document.getElementById('ticketView').classList.add('show');
+    }catch(err){
+      console.error(err);
+      errorEl.textContent = 'No se pudo enviar la reserva. Inténtalo de nuevo.';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Confirmar reserva';
+    }
+  });
+
+  document.getElementById('newResBtn').addEventListener('click', ()=>{
+    document.getElementById('bookingForm').reset();
+    counts = {pasajeros:1, maletas:0};
+    document.getElementById('pasajerosCount').textContent = '1';
+    document.getElementById('maletasCount').textContent = '0';
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = 'Confirmar reserva';
+    document.getElementById('ticketView').classList.remove('show');
+    document.getElementById('formView').style.display = 'block';
+  });
+</script>
+</body>
+</html>
