@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#171A1F">
 <title>MisReservas · Panel</title>
+<link rel="manifest" href="manifest-panel.json">
+<link rel="icon" href="panel-192.png">
 <style>
 :root{--bg:#171A1F;--card:#1F242C;--line:#303742;--ink:#ECEFF3;--muted:#98A2B0;--amber:#E8A33D;--amber-ink:#231600;--ok:#4CC38A;--bad:#F07A6E}
 *{box-sizing:border-box}
@@ -236,5 +238,6 @@ $('btnCancel').onclick=async()=>{
 };
 })();
 </script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
 </body>
 </html>
