@@ -1,420 +1,240 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>MisReservas — Panel</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#171A1F">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<title>MisReservas · Panel</title>
 <style>
-  :root{
-    --bg:#171A1F;
-    --surface:#1F242B;
-    --surface-raised:#262C34;
-    --text:#F3F1EA;
-    --text-muted:#8A9099;
-    --amber:#E8A33D;
-    --teal:#4FA3A0;
-    --red:#D9634B;
-    --divider:rgba(255,255,255,0.08);
-    --radius:2px;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:'IBM Plex Sans', sans-serif;
-    min-height:100vh;
-  }
-  header{
-    position:sticky; top:0; z-index:5;
-    background:var(--bg);
-    display:flex;
-    align-items:baseline;
-    justify-content:space-between;
-    padding:20px 20px 14px;
-    border-bottom:1px solid var(--divider);
-  }
-  .brand{font-size:17px;font-weight:600;}
-  .brand span{color:var(--amber);}
-  .summary{
-    font-family:'IBM Plex Mono', monospace;
-    font-variant-numeric:tabular-nums;
-    color:var(--text-muted);
-    font-size:13px;
-  }
-  .tabs{
-    display:flex;
-    gap:2px;
-    padding:14px 20px 0;
-  }
-  .tab{
-    background:none;
-    border:none;
-    color:var(--text-muted);
-    font-family:'IBM Plex Sans', sans-serif;
-    font-size:14px;
-    padding:8px 4px 10px;
-    margin-right:18px;
-    cursor:pointer;
-    border-bottom:2px solid transparent;
-  }
-  .tab.active{color:var(--text); border-bottom-color:var(--amber);}
-
-  #list{
-    max-width:720px;
-    margin:0 auto;
-    padding:6px 20px 60px;
-  }
-  .empty{
-    color:var(--text-muted);
-    font-size:14px;
-    padding:60px 0;
-    text-align:center;
-  }
-  .row{
-    display:grid;
-    grid-template-columns:64px 1fr auto;
-    align-items:center;
-    gap:14px;
-    padding:14px 0;
-    border-bottom:1px solid var(--divider);
-    cursor:pointer;
-  }
-  .row .time{
-    font-family:'IBM Plex Mono', monospace;
-    font-variant-numeric:tabular-nums;
-    font-size:16px;
-    font-weight:600;
-  }
-  .row .info .route{font-size:15px;}
-  .row .info .meta{
-    color:var(--text-muted);
-    font-size:12.5px;
-    margin-top:3px;
-  }
-  .dot{
-    width:9px;height:9px;border-radius:50%;
-    justify-self:end;
-  }
-  .dot.pendiente{background:var(--amber);}
-  .dot.confirmada{background:var(--teal);}
-  .dot.cancelada{background:var(--red);}
-
-  /* Panel de detalle */
-  .overlay{
-    display:none;
-    position:fixed; inset:0;
-    background:rgba(10,11,13,0.6);
-    z-index:10;
-    align-items:flex-end;
-    justify-content:center;
-  }
-  .overlay.show{display:flex;}
-  .sheet{
-    width:100%;
-    max-width:480px;
-    background:var(--surface);
-    border-top:1px solid var(--divider);
-    border-radius:8px 8px 0 0;
-    padding:22px 22px 28px;
-  }
-  .sheet h2{font-size:19px;font-weight:500;margin:0 0 4px;}
-  .sheet .status-label{font-size:13px;margin-bottom:16px;}
-  .sheet .status-label.pendiente{color:var(--amber);}
-  .sheet .status-label.confirmada{color:var(--teal);}
-  .sheet .status-label.cancelada{color:var(--red);}
-  .sheet dl{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:0 0 20px;}
-  .sheet dt{color:var(--text-muted);font-size:13px;}
-  .sheet dd{margin:0;font-size:14.5px;}
-  .actions{display:flex;gap:10px;}
-  .actions button{
-    flex:1;
-    padding:13px;
-    border-radius:var(--radius);
-    border:1px solid var(--divider);
-    background:var(--surface-raised);
-    color:var(--text);
-    font-family:'IBM Plex Sans', sans-serif;
-    font-size:14.5px;
-    cursor:pointer;
-  }
-  .actions .confirm{background:var(--teal);border-color:var(--teal);color:#0D1F1E;font-weight:600;}
-  .actions .cancel{background:none;border-color:var(--red);color:var(--red);}
-  .closeSheet{
-    display:block;
-    margin:16px auto 0;
-    background:none;border:none;
-    color:var(--text-muted);
-    font-size:13px;
-    cursor:pointer;
-  }
-
-  .loginView{
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:20px;
-  }
-  .loginCard{
-    width:100%;
-    max-width:340px;
-    background:var(--surface);
-    border:1px solid var(--divider);
-    border-radius:var(--radius);
-    padding:26px 24px 24px;
-  }
-  .loginCard .sub{
-    color:var(--text-muted);
-    font-size:13.5px;
-    margin:6px 0 20px;
-  }
-  .loginCard .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
-  .loginCard label{font-size:13px;color:var(--text-muted);}
-  .loginCard input{
-    background:var(--surface-raised);
-    border:1px solid var(--divider);
-    border-radius:var(--radius);
-    color:var(--text);
-    font-family:'IBM Plex Sans', sans-serif;
-    font-size:15px;
-    padding:12px 13px;
-    outline:none;
-  }
-  .loginCard input:focus{border-color:var(--amber);}
-  .loginCard .error{color:var(--red);font-size:13px;min-height:16px;}
-  .loginCard .submit{
-    width:100%;
-    background:var(--amber);
-    color:#1A1409;
-    border:none;
-    border-radius:var(--radius);
-    padding:13px;
-    font-size:15px;
-    font-weight:600;
-    font-family:'IBM Plex Sans', sans-serif;
-    cursor:pointer;
-  }
-  .logoutBtn{
-    background:none;
-    border:none;
-    color:var(--text-muted);
-    font-size:12.5px;
-    cursor:pointer;
-    margin-left:12px;
-  }
+:root{--bg:#171A1F;--card:#1F242C;--line:#303742;--ink:#ECEFF3;--muted:#98A2B0;--amber:#E8A33D;--amber-ink:#231600;--ok:#4CC38A;--bad:#F07A6E}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.wrap{max-width:640px;margin:0 auto;padding:16px 18px 48px}
+.brand{font-weight:700;font-size:1.2rem}.brand span{color:var(--amber)}
+.loginCard{max-width:400px;margin:12vh auto 0;padding:0 18px}
+.sub{color:var(--muted);margin:6px 0 20px}
+.field{margin-bottom:14px}
+label{display:block;color:var(--muted);font-size:.9rem;margin-bottom:6px}
+input,textarea{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:12px 14px;font:inherit;min-height:48px}
+textarea{min-height:64px;resize:vertical}
+.error{color:var(--bad);min-height:1.3em;margin:6px 0 10px}
+.submit{width:100%;background:var(--amber);color:var(--amber-ink);border:0;border-radius:6px;padding:14px;font:inherit;font-weight:700;cursor:pointer}
+.submit:disabled{opacity:.6}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.hdr-r{display:flex;align-items:center;gap:10px}
+.summary{color:var(--muted);font-size:.9rem}
+.summary b{color:var(--amber)}
+.out{background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:12px}
+.tabs button{flex:1;border:0;background:none;color:var(--muted);padding:10px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer}
+.tabs button.on{background:var(--amber);color:var(--amber-ink)}
+.day{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.row{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px;color:var(--ink);font:inherit;cursor:pointer}
+.row .t{font-weight:700;font-size:1.3rem;font-variant-numeric:tabular-nums}
+.row .r{min-width:0;overflow-wrap:anywhere}
+.row .m{color:var(--muted);font-size:.86rem;margin-top:2px}
+.tag{display:inline-block;font-size:.75rem;font-weight:700;border-radius:5px;padding:1px 7px;margin:4px 6px 0 0;border:1px solid var(--line);color:var(--muted)}
+.tag.taxi{color:var(--ok);border-color:currentColor}
+.dot{width:12px;height:12px;border-radius:50%;margin-top:6px}
+.dot.pendiente{background:var(--amber)}.dot.confirmada{background:var(--ok)}.dot.cancelada{background:var(--bad)}
+.row.cancelada{opacity:.6}
+.empty{color:var(--muted);text-align:center;padding:28px 10px}
+dialog{border:0;border-radius:16px 16px 0 0;background:var(--card);color:var(--ink);padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));width:100%;max-width:640px;max-height:92vh;overflow:auto;margin:auto auto 0}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 4px;font-size:1.15rem;overflow-wrap:anywhere}
+.status-label{font-weight:700;margin-bottom:10px}
+.status-label.pendiente{color:var(--amber)}.status-label.confirmada{color:var(--ok)}.status-label.cancelada{color:var(--bad)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 16px}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+.box{border-top:1px solid var(--line);padding-top:14px}
+.box h3{margin:0 0 4px;font-size:1rem}
+.box p{color:var(--muted);font-size:.88rem;margin:0 0 12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.actions .submit{flex:1 1 100%}
+.btn{flex:1;border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:12px;font:inherit;font-weight:600;cursor:pointer;text-align:center;text-decoration:none}
+.btn.bad{color:var(--bad)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--amber);color:var(--amber-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
 </head>
 <body>
-<div class="loginView" id="loginView">
+
+<div id="loginView" hidden>
   <div class="loginCard">
     <div class="brand">Mis<span>Reservas</span> · Panel</div>
     <p class="sub">Accede con tu cuenta de conductor.</p>
-    <div class="field">
-      <label for="loginEmail">Correo</label>
-      <input type="text" id="loginEmail" placeholder="tucorreo@ejemplo.com">
-    </div>
-    <div class="field">
-      <label for="loginPass">Contraseña</label>
-      <input type="password" id="loginPass" placeholder="••••••••">
-    </div>
+    <div class="field"><label for="loginEmail">Correo</label><input type="email" id="loginEmail" autocomplete="username"></div>
+    <div class="field"><label for="loginPass">Contraseña</label><input type="password" id="loginPass" autocomplete="current-password"></div>
     <div class="error" id="loginError"></div>
-    <button class="submit" id="loginBtn">Entrar</button>
+    <button class="submit" id="loginBtn" type="button">Entrar</button>
   </div>
 </div>
 
-<div class="app" id="appView" style="display:none;">
-<header>
-  <div class="brand">Mis<span>Reservas</span> · Panel</div>
-  <div>
-    <span class="summary" id="summary">— reservas</span>
-    <button class="logoutBtn" id="logoutBtn">Salir</button>
+<div class="wrap" id="appView" hidden>
+  <header>
+    <div class="brand">Mis<span>Reservas</span></div>
+    <div class="hdr-r"><span class="summary" id="summary"></span><button class="out" id="outBtn" type="button">Salir</button></div>
+  </header>
+  <div class="tabs">
+    <button type="button" data-f="hoy" class="on">Hoy</button>
+    <button type="button" data-f="proximas">Próximas</button>
+    <button type="button" data-f="todas">Todas</button>
   </div>
-</header>
-
-<div class="tabs">
-  <button class="tab active" data-filter="hoy">Hoy</button>
-  <button class="tab" data-filter="proximas">Próximas</button>
-  <button class="tab" data-filter="todas">Todas</button>
+  <div id="list"><p class="empty">Cargando reservas…</p></div>
 </div>
 
-<div id="list">
-  <div class="empty" id="emptyMsg">Cargando reservas…</div>
-</div>
-
-</div>
-
-<div class="overlay" id="overlay">
-  <div class="sheet">
-    <h2 id="sTitle">—</h2>
-    <div class="status-label" id="sStatus">—</div>
-    <dl>
-      <dt>Fecha</dt><dd id="sFecha">—</dd>
-      <dt>Hora</dt><dd id="sHora">—</dd>
-      <dt>Cliente</dt><dd id="sNombre">—</dd>
-      <dt>Teléfono</dt><dd id="sTelefono">—</dd>
-      <dt>Pasajeros</dt><dd id="sPasajeros">—</dd>
-      <dt>Maletas</dt><dd id="sMaletas">—</dd>
-      <dt>Código</dt><dd id="sCodigo">—</dd>
-    </dl>
-    <div class="actions">
-      <button class="cancel" id="btnCancel">Cancelar</button>
-      <button class="confirm" id="btnConfirm">Confirmar</button>
+<dialog id="sheet">
+  <h2 id="sTitle"></h2>
+  <div class="status-label" id="sStatus"></div>
+  <dl id="sDl"></dl>
+  <div class="box">
+    <h3>Datos para el cliente</h3>
+    <p>El cliente los ve al momento en su página. Déjalos en blanco si vas tú.</p>
+    <div class="grid2">
+      <div class="field"><label for="aTaxi">Número de taxi</label><input type="text" id="aTaxi" inputmode="numeric" autocomplete="off"></div>
+      <div class="field"><label for="aConductor">Conductor</label><input type="text" id="aConductor" autocomplete="off"></div>
     </div>
-    <button class="closeSheet" id="btnClose">Cerrar</button>
+    <div class="field"><label for="aNota">Nota para el cliente</label><textarea id="aNota" placeholder="Te recoge mi compañero en la puerta principal…"></textarea></div>
   </div>
-</div>
+  <div class="error" id="sError"></div>
+  <div class="actions">
+    <button class="submit" type="button" id="btnConfirm">Confirmar</button>
+    <a class="btn" id="btnCall" href="#">Llamar</a>
+    <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
+    <button class="btn" type="button" id="btnClose">Cerrar</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
-  let allReservas = [];
-  let currentFilter = 'hoy';
-  let unsubscribe = null;
-  let selected = null;
+(function(){
+if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const fauth=firebase.auth(), fdb=firebase.firestore();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada'};
+let all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
 
-  function startOfToday(){
-    const d = new Date(); d.setHours(0,0,0,0); return d;
-  }
-  function endOfToday(){
-    const d = new Date(); d.setHours(23,59,59,999); return d;
-  }
+function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,7000);}
+function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
+document.addEventListener('pointerdown',unlockAudio,{passive:true});
+function beep(){if(!audioCtx)return;try{const t0=audioCtx.currentTime;[880,1175].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=f;const s=t0+i*0.22;g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.3,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+0.2);o.connect(g).connect(audioCtx.destination);o.start(s);o.stop(s+0.22);});}catch(e){}}
 
-  function subscribe(){
-    if(unsubscribe) unsubscribe();
-    unsubscribe = db.collection('reservas')
-      .orderBy('fechaHora', 'asc')
-      .onSnapshot(snap=>{
-        allReservas = snap.docs.map(doc=>({id: doc.id, ...doc.data()}));
-        render();
-      }, err=>{
-        document.getElementById('emptyMsg').textContent =
-          'No se pudo conectar. Revisa la configuración de Firebase.';
-        console.error(err);
-      });
-  }
+/* ---- sesión ---- */
+fauth.onAuthStateChanged(u=>{
+  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;subscribe();}
+  else{$('appView').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}known=null;}
+});
+$('loginBtn').onclick=async()=>{
+  unlockAudio();
+  const email=$('loginEmail').value.trim(), pass=$('loginPass').value;
+  $('loginError').textContent='';
+  if(!email||!pass){$('loginError').textContent='Escribe el correo y la contraseña.';return;}
+  $('loginBtn').disabled=true;
+  try{await fauth.signInWithEmailAndPassword(email,pass);$('loginPass').value='';}
+  catch(err){const c=err.code||'';$('loginError').textContent=c.includes('invalid-credential')?'Correo o contraseña incorrectos.':'Error: '+(c||err.message);}
+  finally{$('loginBtn').disabled=false;}
+};
+$('outBtn').onclick=()=>fauth.signOut();
 
-  function render(){
-    const now = new Date();
-    let items = allReservas.filter(r => r.estado !== 'cancelada' || currentFilter === 'todas');
-
-    if(currentFilter === 'hoy'){
-      const s = startOfToday(), e = endOfToday();
-      items = items.filter(r=>{
-        const t = r.fechaHora.toDate();
-        return t >= s && t <= e;
-      });
-    } else if(currentFilter === 'proximas'){
-      items = items.filter(r => r.fechaHora.toDate() >= now);
+/* ---- reservas en directo ---- */
+function subscribe(){
+  if(unsub)unsub();
+  unsub=fdb.collection('reservas').orderBy('fechaHora','asc').onSnapshot(snap=>{
+    const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(known){
+      const nuevas=docs.filter(r=>!known.has(r.id)&&r.estado==='pendiente');
+      if(nuevas.length){beep();try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}
+        const r=nuevas[0];toast('Nueva reserva: '+r.horaTexto+' '+r.origen+(r.clienteCuenta?' ('+r.clienteCuenta+')':''));}
     }
+    known=new Set(docs.map(r=>r.id));
+    all=docs;render();
+    if(selected){const s=all.find(r=>r.id===selected.id);if(s)selected=s;}
+  },err=>{
+    console.error(err);
+    if(err.code==='permission-denied'){fauth.signOut();$('loginError').textContent='Esta cuenta no tiene acceso al panel.';}
+    else $('list').innerHTML='<p class="empty">No se pudo conectar ('+esc(err.code||err.message)+').</p>';
+  });
+}
+const ms=r=>r.fechaHora&&r.fechaHora.toMillis?r.fechaHora.toMillis():0;
+function dayLabel(t){
+  const d=new Date(t);d.setHours(0,0,0,0);const h=new Date();h.setHours(0,0,0,0);
+  const diff=Math.round((d-h)/86400000);
+  if(diff===0)return 'Hoy';if(diff===1)return 'Mañana';if(diff===-1)return 'Ayer';
+  return d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+}
+function render(){
+  const now=Date.now(), s=new Date();s.setHours(0,0,0,0);const e=new Date(s.getTime()+86400000);
+  let items=all;
+  if(filter==='hoy')items=all.filter(r=>ms(r)>=s.getTime()&&ms(r)<e.getTime()&&r.estado!=='cancelada');
+  else if(filter==='proximas')items=all.filter(r=>ms(r)>=now-3600000&&r.estado!=='cancelada');
+  else items=all.slice().sort((a,b)=>ms(b)-ms(a));
+  const pend=all.filter(r=>r.estado==='pendiente'&&ms(r)>=now-3600000).length;
+  $('summary').innerHTML=pend?'<b>'+pend+' pendiente'+(pend===1?'':'s')+'</b>':items.length+' reserva'+(items.length===1?'':'s');
+  if(!items.length){$('list').innerHTML='<p class="empty">No hay reservas en este rango.</p>';return;}
+  let html='',cur='';
+  for(const r of items){
+    const l=dayLabel(ms(r));if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}
+    html+='<button type="button" class="row '+esc(r.estado)+'" data-id="'+esc(r.id)+'">'+
+      '<span class="t">'+esc(r.horaTexto)+'</span>'+
+      '<span class="r"><div>'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
+      '<div class="m">'+esc(r.nombre)+', '+esc(r.pasajeros)+' pax'+(r.maletas?', '+esc(r.maletas)+' mal.':'')+'</div>'+
+      (r.clienteCuenta?'<span class="tag">'+esc(r.clienteCuenta)+'</span>':'')+
+      (r.taxi?'<span class="tag taxi">Taxi '+esc(r.taxi)+'</span>':'')+'</span>'+
+      '<span class="dot '+esc(r.estado)+'" aria-label="'+esc(ESTADO[r.estado]||r.estado)+'"></span></button>';
+  }
+  $('list').innerHTML=html;
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  filter=b.dataset.f;render();
+}));
+$('list').addEventListener('click',e=>{const b=e.target.closest('.row');if(!b)return;const r=all.find(x=>x.id===b.dataset.id);if(r)openSheet(r);});
 
-    const list = document.getElementById('list');
-    const emptyMsg = document.getElementById('emptyMsg');
-    document.getElementById('summary').textContent = `${items.length} reserva${items.length === 1 ? '' : 's'}`;
-
-    list.querySelectorAll('.row').forEach(r=>r.remove());
-
-    if(items.length === 0){
-      emptyMsg.style.display = 'block';
-      emptyMsg.textContent = 'No hay reservas en este rango.';
-      return;
-    }
-    emptyMsg.style.display = 'none';
-
-    items.forEach(r=>{
-      const row = document.createElement('div');
-      row.className = 'row';
-      const time = r.fechaHora.toDate().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
-      row.innerHTML = `
-        <div class="time">${time}</div>
-        <div class="info">
-          <div class="route">${r.origen} → ${r.destino}</div>
-          <div class="meta">${r.nombre} · ${r.pasajeros} pas · ${r.maletas} mal</div>
-        </div>
-        <div class="dot ${r.estado}"></div>
-      `;
-      row.addEventListener('click', ()=>openSheet(r));
-      list.appendChild(row);
+/* ---- ficha de reserva ---- */
+function openSheet(r){
+  selected=r;cancelArmed=false;
+  $('sTitle').textContent=r.origen+' → '+r.destino;
+  const st=$('sStatus');st.textContent=ESTADO[r.estado]||r.estado;st.className='status-label '+r.estado;
+  const f=(r.fechaTexto||'').split('-').reverse().join('/');
+  const rows=[['Fecha',f],['Hora',r.horaTexto],['Cliente',r.nombre],['Teléfono',r.telefono],['Pasajeros',r.pasajeros],['Maletas',r.maletas],['Notas',r.notas],['Cuenta',r.clienteCuenta],['Código',r.codigo]];
+  $('sDl').innerHTML=rows.filter(x=>x[1]!==undefined&&x[1]!==null&&x[1]!=='').map(x=>'<dt>'+esc(x[0])+'</dt><dd>'+esc(x[1])+'</dd>').join('');
+  $('aTaxi').value=r.taxi||'';$('aConductor').value=r.conductor||'';$('aNota').value=r.notaCliente||'';
+  $('btnConfirm').textContent=r.estado==='confirmada'?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
+  $('btnCancel').hidden=r.estado==='cancelada';$('btnCancel').textContent='Cancelar reserva';
+  const tel=String(r.telefono||'').replace(/[^\d+]/g,'');$('btnCall').hidden=!tel;$('btnCall').href=tel?'tel:'+tel:'#';
+  $('sError').textContent='';
+  $('sheet').showModal();
+}
+$('btnClose').onclick=()=>{$('sheet').close();selected=null;};
+$('btnConfirm').onclick=async()=>{
+  if(!selected)return;
+  $('btnConfirm').disabled=true;
+  try{
+    await fdb.collection('reservas').doc(selected.id).update({
+      estado:'confirmada',
+      taxi:$('aTaxi').value.trim(),conductor:$('aConductor').value.trim(),notaCliente:$('aNota').value.trim(),
+      actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
     });
-  }
-
-  function openSheet(r){
-    selected = r;
-    document.getElementById('sTitle').textContent = `${r.origen} → ${r.destino}`;
-    document.getElementById('sStatus').textContent =
-      r.estado === 'pendiente' ? 'Pendiente de confirmar' :
-      r.estado === 'confirmada' ? 'Confirmada' : 'Cancelada';
-    document.getElementById('sStatus').className = 'status-label ' + r.estado;
-    document.getElementById('sFecha').textContent = r.fechaTexto.split('-').reverse().join('/');
-    document.getElementById('sHora').textContent = r.horaTexto;
-    document.getElementById('sNombre').textContent = r.nombre;
-    document.getElementById('sTelefono').textContent = r.telefono;
-    document.getElementById('sPasajeros').textContent = r.pasajeros;
-    document.getElementById('sMaletas').textContent = r.maletas;
-    document.getElementById('sCodigo').textContent = r.codigo;
-    document.getElementById('overlay').classList.add('show');
-  }
-
-  document.getElementById('btnClose').addEventListener('click', ()=>{
-    document.getElementById('overlay').classList.remove('show');
-  });
-  document.getElementById('overlay').addEventListener('click', (e)=>{
-    if(e.target.id === 'overlay') document.getElementById('overlay').classList.remove('show');
-  });
-
-  document.getElementById('btnConfirm').addEventListener('click', async ()=>{
-    if(!selected) return;
-    await db.collection('reservas').doc(selected.id).update({estado:'confirmada'});
-    document.getElementById('overlay').classList.remove('show');
-  });
-  document.getElementById('btnCancel').addEventListener('click', async ()=>{
-    if(!selected) return;
-    await db.collection('reservas').doc(selected.id).update({estado:'cancelada'});
-    document.getElementById('overlay').classList.remove('show');
-  });
-
-  document.querySelectorAll('.tab').forEach(tab=>{
-    tab.addEventListener('click', ()=>{
-      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-      tab.classList.add('active');
-      currentFilter = tab.dataset.filter;
-      render();
-    });
-  });
-
-  // Autenticación: solo se muestra el panel si hay sesión iniciada
-  firebase.auth().onAuthStateChanged(user=>{
-    if(user){
-      document.getElementById('loginView').style.display = 'none';
-      document.getElementById('appView').style.display = 'block';
-      subscribe();
-    } else {
-      document.getElementById('loginView').style.display = 'flex';
-      document.getElementById('appView').style.display = 'none';
-      if(unsubscribe) unsubscribe();
-    }
-  });
-
-  document.getElementById('loginBtn').addEventListener('click', async ()=>{
-    const email = document.getElementById('loginEmail').value.trim();
-    const pass = document.getElementById('loginPass').value;
-    const errorEl = document.getElementById('loginError');
-    errorEl.textContent = '';
-    try{
-      await firebase.auth().signInWithEmailAndPassword(email, pass);
-    }catch(err){
-      errorEl.textContent = 'Correo o contraseña incorrectos.';
-    }
-  });
-
-  document.getElementById('logoutBtn').addEventListener('click', ()=>{
-    firebase.auth().signOut();
-  });
+    $('sheet').close();selected=null;toast('Guardado. El cliente ya lo ve.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+  finally{$('btnConfirm').disabled=false;}
+};
+$('btnCancel').onclick=async()=>{
+  if(!selected)return;
+  if(!cancelArmed){cancelArmed=true;$('btnCancel').textContent='Pulsa otra vez para cancelar';return;}
+  try{
+    await fdb.collection('reservas').doc(selected.id).update({estado:'cancelada',notaCliente:$('aNota').value.trim(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    $('sheet').close();selected=null;toast('Reserva cancelada.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
+})();
 </script>
 </body>
 </html>
