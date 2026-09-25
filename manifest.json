@@ -1,0 +1,18 @@
+{
+  "id": "./index.html",
+  "name": "MisReservas",
+  "short_name": "MisReservas",
+  "description": "Reserva tu taxi y consulta el estado de tus reservas",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#171A1F",
+  "theme_color": "#171A1F",
+  "lang": "es",
+  "icons": [
+    { "src": "cliente-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "cliente-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "cliente-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
