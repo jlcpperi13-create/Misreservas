@@ -1,6 +1,6 @@
 // Service worker de MisReservas
 // Cada vez que subas cambios, sube también este número (v1 -> v2 -> v3...)
-const CACHE = 'misreservas-v1';
+const CACHE = 'misreservas-v3';
 const ARCHIVOS = ['./', './index.html', './admin.html', './firebase-config.js',
   './manifest.json', './manifest-panel.json',
   './cliente-192.png', './cliente-512.png', './panel-192.png', './panel-512.png'];
