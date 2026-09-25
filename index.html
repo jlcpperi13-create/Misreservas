@@ -336,7 +336,7 @@
       document.getElementById('ticketView').classList.add('show');
     }catch(err){
       console.error(err);
-      errorEl.textContent = 'No se pudo enviar la reserva. Inténtalo de nuevo.';
+      errorEl.textContent = 'Error: ' + (err.code || err.message);
       submitBtn.disabled = false;
       submitBtn.textContent = 'Confirmar reserva';
     }
