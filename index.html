@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#171A1F">
 <title>MisReservas</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="cliente-192.png">
+<link rel="apple-touch-icon" href="cliente-180.png">
 <style>
 :root{--bg:#171A1F;--card:#1F242C;--line:#303742;--ink:#ECEFF3;--muted:#98A2B0;--amber:#E8A33D;--amber-ink:#231600;--ok:#4CC38A;--bad:#F07A6E}
 *{box-sizing:border-box}
@@ -282,5 +284,6 @@ $('bookingForm').addEventListener('submit',async e=>{
 });
 })();
 </script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
 </body>
 </html>
