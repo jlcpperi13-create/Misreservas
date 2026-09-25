@@ -61,6 +61,23 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 .fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:5;border:0;background:var(--amber);color:var(--amber-ink);font:inherit;font-weight:700;font-size:1.05rem;border-radius:999px;padding:14px 26px;box-shadow:0 6px 20px rgba(0,0,0,.45);cursor:pointer}
 .tag.other{color:#8FB8FF;border-color:currentColor}
 .tabs button[hidden]{display:none}
+.tabs{overflow-x:auto;scrollbar-width:none}
+.tabs button{flex:1 0 auto}
+.search{width:100%;margin:0 0 10px}
+select{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:12px 14px;font:inherit;min-height:48px}
+.mnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 12px}
+.mnav button{background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;width:44px;height:44px;font-size:1.3rem;cursor:pointer}
+.mnav b{font-size:1.1rem;text-transform:capitalize}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi span{display:block;color:var(--muted);font-size:.8rem}
+.kpi b{font-size:1.1rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.crow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px;color:var(--ink);font:inherit;cursor:pointer}
+.crow .n{min-width:0;overflow-wrap:anywhere;font-weight:600}
+.crow .n small{display:block;color:var(--muted);font-weight:400}
+.crow .c{font-variant-numeric:tabular-nums;color:var(--muted)}
+.crow .e{font-variant-numeric:tabular-nums;font-weight:700;min-width:5.5em;text-align:right}
+.gcal{display:inline-block;margin-top:6px;font-size:.85rem;color:var(--ok)}
 .tag.own{color:var(--amber);border-color:currentColor}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--amber);color:var(--amber-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
@@ -88,7 +105,9 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     <button type="button" data-f="proximas">Próximas</button>
     <button type="button" data-f="mios" id="tabMios" hidden>Míos</button>
     <button type="button" data-f="todas">Todas</button>
+    <button type="button" data-f="resumen">Resumen</button>
   </div>
+  <input class="search" id="search" type="search" placeholder="Buscar cliente, teléfono, lugar…" hidden>
   <div id="list"><p class="empty">Cargando reservas…</p></div>
 </div>
 
@@ -101,6 +120,9 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     <div class="field"><label for="meTaxi">Número de taxi</label><input type="text" id="meTaxi" inputmode="numeric" autocomplete="off"></div>
     <div class="field"><label for="meNombre">Tu nombre</label><input type="text" id="meNombre" autocomplete="off"></div>
   </div>
+  <div class="field"><label for="meAviso">Aviso por defecto en Google Calendar</label>
+    <select id="meAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
+  <button class="btn" type="button" id="gBtn" hidden style="width:100%;margin-bottom:12px">Conectar Google Calendar</button>
   <div class="actions">
     <button class="submit" type="button" id="meSave">Guardar</button>
     <button class="btn" type="button" id="meClose">Cerrar</button>
@@ -123,6 +145,11 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     <div class="field"><label for="nMal">Maletas</label><input type="number" id="nMal" min="0" max="20" inputmode="numeric"></div>
   </div>
   <div class="field"><label for="nNotas">Notas (opcional)</label><textarea id="nNotas"></textarea></div>
+  <div class="grid2">
+    <div class="field"><label for="nImporte">Importe (€, opcional)</label><input type="text" id="nImporte" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+    <div class="field"><label for="nAviso">Aviso en calendario</label>
+      <select id="nAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
+  </div>
   <div class="error" id="nError"></div>
   <div class="actions">
     <button class="submit" type="button" id="nSave">Guardar servicio</button>
@@ -143,11 +170,21 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
     </div>
     <div class="field"><label for="aNota">Nota para el cliente</label><textarea id="aNota" placeholder="Te recoge mi compañero en la puerta principal…"></textarea></div>
   </div>
+  <div class="box">
+    <h3>Para ti</h3>
+    <div class="grid2">
+      <div class="field"><label for="aImporte">Importe cobrado (€)</label><input type="text" id="aImporte" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+      <div class="field"><label for="aAviso">Aviso en calendario</label>
+        <select id="aAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
+    </div>
+    <div id="sGcal" class="gcal"></div>
+  </div>
   <div class="error" id="sError"></div>
   <div class="actions">
     <button class="submit" type="button" id="btnConfirm">Confirmar</button>
     <button class="btn" type="button" id="btnEditOwn" hidden>Editar servicio</button>
     <a class="btn" id="btnCall" href="#">Llamar</a>
+    <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
     <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
     <button class="btn" type="button" id="btnClose">Cerrar</button>
   </div>
@@ -173,21 +210,97 @@ function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||windo
 document.addEventListener('pointerdown',unlockAudio,{passive:true});
 function beep(){if(!audioCtx)return;try{const t0=audioCtx.currentTime;[880,1175].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=f;const s=t0+i*0.22;g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.3,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+0.2);o.connect(g).connect(audioCtx.destination);o.start(s);o.stop(s+0.22);});}catch(e){}}
 
+/* ---- Google Calendar ---- */
+const GOOGLE_CLIENT_ID=''; // <-- Pega aquí tu ID de cliente OAuth (termina en .apps.googleusercontent.com)
+const TZ=(Intl.DateTimeFormat().resolvedOptions().timeZone)||'Europe/Madrid';
+const GAPI='https://www.googleapis.com/calendar/v3/calendars/primary/events';
+let gToken=null,gExp=0,tokenClient=null,pendingTok=null;
+try{const t=JSON.parse(localStorage.getItem('mr-gtoken')||'null');if(t&&t.exp>Date.now()){gToken=t.token;gExp=t.exp;}}catch(e){}
+function gConnected(){try{return !!GOOGLE_CLIENT_ID&&!!yo()&&localStorage.getItem('mr-gcal-'+yo().uid)==='1'}catch(e){return false}}
+function initGoogle(){
+  if(!GOOGLE_CLIENT_ID)return;
+  const sc=document.createElement('script');sc.src='https://accounts.google.com/gsi/client';sc.async=true;
+  sc.onload=()=>{tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/calendar.events',
+    callback:r=>{const p=pendingTok;pendingTok=null;if(!p)return;if(r.error){p.rej(new Error(r.error));return;}
+      gToken=r.access_token;gExp=Date.now()+(+r.expires_in||3600)*1000;
+      try{localStorage.setItem('mr-gtoken',JSON.stringify({token:gToken,exp:gExp}))}catch(e){}
+      p.res(gToken);},
+    error_callback:e=>{const p=pendingTok;pendingTok=null;if(p)p.rej(new Error((e&&e.type)||'popup'));}
+  });};
+  document.head.appendChild(sc);
+}
+function getToken(interactive){
+  if(!interactive&&gToken&&Date.now()<gExp-60000)return Promise.resolve(gToken);
+  if(!tokenClient)return Promise.reject(new Error('Google todavía está cargando'));
+  return new Promise((res,rej)=>{pendingTok={res,rej};tokenClient.requestAccessToken({prompt:interactive?'consent':''});});
+}
+async function gFetch(method,path,body,retry){
+  const tok=await getToken(false);
+  const r=await fetch(GAPI+(path||''),{method,headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(r.status===401&&!retry){gToken=null;return gFetch(method,path,body,true);}
+  if(method==='DELETE'){if(r.ok||r.status===404||r.status===410)return null;throw new Error('HTTP '+r.status);}
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.json();
+}
+const p2=n=>String(n).padStart(2,'0');
+function toEvent(r){
+  const s0=new Date(r.fechaTexto+'T'+r.horaTexto),e0=new Date(s0.getTime()+3600000);
+  const loc=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+'T'+p2(d.getHours())+':'+p2(d.getMinutes())+':00';
+  const av=+r.aviso||0;
+  return {
+    summary:'Taxi: '+(r.origen||'')+' → '+(r.destino||''),
+    location:r.origen||'',
+    description:[r.nombre&&'Cliente: '+r.nombre,r.telefono&&'Teléfono: '+r.telefono,r.pasajeros&&'Pasajeros: '+r.pasajeros,r.maletas&&'Maletas: '+r.maletas,r.notas&&'Notas: '+r.notas,r.codigo&&'Código: '+r.codigo].filter(Boolean).join('\n'),
+    start:{dateTime:loc(s0),timeZone:TZ},end:{dateTime:loc(e0),timeZone:TZ},
+    reminders:{useDefault:false,overrides:av?[{method:'popup',minutes:av}]:[]}
+  };
+}
+async function syncEvent(r){
+  if(r.gcalId){
+    try{await gFetch('PUT','/'+encodeURIComponent(r.gcalId),toEvent(r));return r.gcalId;}
+    catch(e){if(!/HTTP (404|410)/.test(e.message))throw e;}
+  }
+  return (await gFetch('POST','',toEvent(r))).id;
+}
+function gcalLink(r){
+  const s0=new Date(r.fechaTexto+'T'+r.horaTexto),e0=new Date(s0.getTime()+3600000),ev=toEvent(r);
+  const f=d=>d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'T'+p2(d.getHours())+p2(d.getMinutes())+'00';
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(ev.summary)+'&dates='+f(s0)+'/'+f(e0)+'&ctz='+encodeURIComponent(TZ)+'&details='+encodeURIComponent(ev.description)+'&location='+encodeURIComponent(ev.location);
+}
+function parseImporte(v){v=String(v||'').trim().replace(/\s|€/g,'').replace(',','.');if(!v)return null;const n=Math.round(parseFloat(v)*100)/100;return isFinite(n)&&n>=0?n:null;}
+const eur=n=>(Math.round((n||0)*100)/100).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+function setSelect(el,v){const val=String(v);el.value=[...el.options].some(o=>o.value===val)?val:'30';}
+
 /* ---- quién soy y mi taxi ---- */
 const yo=()=>fauth.currentUser;
 function miTaxi(){try{return JSON.parse(localStorage.getItem('mr-mitaxi-'+(yo()?yo().uid:''))||'{}')}catch(e){return {}}}
 function pintarMeBtn(){const t=miTaxi();$('meBtn').textContent=t.taxi?'Taxi '+t.taxi:'Mi taxi';}
-$('meBtn').onclick=()=>{const t=miTaxi();$('meTaxi').value=t.taxi||'';$('meNombre').value=t.nombre||'';$('meDlg').showModal();};
+$('meBtn').onclick=()=>{const t=miTaxi();$('meTaxi').value=t.taxi||'';$('meNombre').value=t.nombre||'';setSelect($('meAviso'),t.aviso==null?30:t.aviso);
+  $('gBtn').hidden=!GOOGLE_CLIENT_ID;$('gBtn').textContent=gConnected()?'Google Calendar conectado':'Conectar Google Calendar';$('meDlg').showModal();};
+$('gBtn').onclick=()=>{
+  if(gConnected()){toast('Ya está conectado. Los servicios que confirmes irán a tu calendario.');return;}
+  getToken(true).then(async()=>{
+    try{localStorage.setItem('mr-gcal-'+yo().uid,'1')}catch(e){}
+    $('gBtn').textContent='Google Calendar conectado';
+    const now=Date.now();let n=0;
+    for(const r of all){
+      if(r.estado!=='confirmada'||r.gcalId||ms(r)<now||(r.asignadoA&&r.asignadoA!==yo().uid))continue;
+      try{const rr={...r,aviso:r.aviso==null?(miTaxi().aviso==null?30:miTaxi().aviso):r.aviso};const id=await syncEvent(rr);await fdb.collection('reservas').doc(r.id).update({gcalId:id,aviso:rr.aviso});n++;}catch(e){}
+    }
+    toast('Conectado.'+(n?' '+n+(n===1?' servicio enviado':' servicios enviados')+' a tu calendario.':''));
+  }).catch(()=>toast('No se ha conectado. Vuelve a pulsar y elige tu cuenta de Google.'));
+};
 $('meClose').onclick=()=>$('meDlg').close();
 $('meSave').onclick=()=>{
-  try{localStorage.setItem('mr-mitaxi-'+yo().uid,JSON.stringify({taxi:$('meTaxi').value.trim(),nombre:$('meNombre').value.trim()}));}catch(e){}
+  try{localStorage.setItem('mr-mitaxi-'+yo().uid,JSON.stringify({taxi:$('meTaxi').value.trim(),nombre:$('meNombre').value.trim(),aviso:+$('meAviso').value}));}catch(e){}
   pintarMeBtn();$('meDlg').close();toast('Guardado.');
 };
 function asignacion(){const u=yo();return u?{asignadoA:u.uid,asignadoEmail:u.email||''}:{};}
 
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(u=>{
-  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();subscribe();}
+  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();}
   else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}known=null;}
 });
 $('loginBtn').onclick=async()=>{
@@ -228,13 +341,51 @@ function dayLabel(t){
   if(diff===0)return 'Hoy';if(diff===1)return 'Mañana';if(diff===-1)return 'Ayer';
   return d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
 }
+let resMes=(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()};})();
+function claveCliente(r){
+  if(r.clienteCuenta)return {k:'c:'+r.clienteCuenta,n:r.clienteCuenta.split('@')[0],sub:r.clienteCuenta,q:r.clienteCuenta};
+  const t=String(r.telefono||'').replace(/\D/g,'').replace(/^34(?=\d{9}$)/,'');
+  if(t)return {k:'t:'+t,n:r.nombre||t,sub:t,q:t};
+  if(r.nombre)return {k:'n:'+r.nombre.toLowerCase(),n:r.nombre,sub:'',q:r.nombre};
+  return {k:'-',n:r.fuente==='propio'?'Servicios propios sin cliente':'Sin datos de cliente',sub:'',q:''};
+}
+function renderResumen(){
+  const ini=new Date(resMes.y,resMes.m,1).getTime(),fin=new Date(resMes.y,resMes.m+1,1).getTime();
+  const del=all.filter(r=>r.estado==='confirmada'&&ms(r)>=ini&&ms(r)<fin);
+  const map=new Map();let total=0,sinImp=0;
+  for(const r of del){
+    const c=claveCliente(r);let g=map.get(c.k);
+    if(!g){g={n:c.n,sub:c.sub,q:c.q,count:0,imp:0,sin:0};map.set(c.k,g);}
+    g.count++;
+    if(typeof r.importe==='number'){g.imp+=r.importe;total+=r.importe;}else{g.sin++;sinImp++;}
+  }
+  const rows=[...map.values()].sort((a,b)=>b.count-a.count||b.imp-a.imp);
+  const mes=new Date(resMes.y,resMes.m,1).toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  let html='<div class="mnav"><button type="button" id="mPrev" aria-label="Mes anterior">‹</button><b>'+esc(mes)+'</b><button type="button" id="mNext" aria-label="Mes siguiente">›</button></div>'+
+    '<div class="kpis"><div class="kpi"><span>Servicios</span><b>'+del.length+'</b></div><div class="kpi"><span>Importe</span><b>'+esc(eur(total))+'</b></div><div class="kpi"><span>Sin importe</span><b>'+sinImp+'</b></div></div>';
+  if(!rows.length)html+='<p class="empty">No hay servicios confirmados en este mes.</p>';
+  for(const g of rows){
+    html+='<button type="button" class="crow" data-q="'+esc(g.q)+'"><span class="n">'+esc(g.n)+(g.sub&&g.sub!==g.n?'<small>'+esc(g.sub)+'</small>':'')+'</span>'+
+      '<span class="c">'+g.count+(g.count===1?' servicio':' servicios')+(g.sin?'<br><small>'+g.sin+' sin importe</small>':'')+'</span>'+
+      '<span class="e">'+esc(eur(g.imp))+'</span></button>';
+  }
+  $('summary').textContent='';
+  $('list').innerHTML=html;
+  $('mPrev').onclick=()=>{resMes.m--;if(resMes.m<0){resMes.m=11;resMes.y--;}render();};
+  $('mNext').onclick=()=>{resMes.m++;if(resMes.m>11){resMes.m=0;resMes.y++;}render();};
+}
 function render(){
+  $('search').hidden=filter!=='todas';
+  if(filter==='resumen'){renderResumen();return;}
   const now=Date.now(), s=new Date();s.setHours(0,0,0,0);const e=new Date(s.getTime()+86400000);
   let items=all;
   if(filter==='hoy')items=all.filter(r=>ms(r)>=s.getTime()&&ms(r)<e.getTime()&&r.estado!=='cancelada');
   else if(filter==='proximas')items=all.filter(r=>ms(r)>=now-3600000&&r.estado!=='cancelada');
   else if(filter==='mios')items=all.filter(r=>r.asignadoA===yo().uid&&ms(r)>=now-3600000&&r.estado!=='cancelada');
-  else items=all.slice().sort((a,b)=>ms(b)-ms(a));
+  else{items=all.slice().sort((a,b)=>ms(b)-ms(a));
+    const q=$('search').value.trim().toLowerCase(),qd=q.replace(/\D/g,'');
+    if(q)items=items.filter(r=>{const txt=[r.nombre,r.clienteCuenta,r.origen,r.destino,r.codigo,r.notas].join(' ').toLowerCase();
+      const tel=String(r.telefono||'').replace(/\D/g,'');return txt.includes(q)||(qd.length>=3&&tel.includes(qd));});}
   const hayOtros=all.some(r=>r.asignadoA&&r.asignadoA!==yo().uid);
   $('tabMios').hidden=!hayOtros;
   const pend=all.filter(r=>r.estado==='pendiente'&&ms(r)>=now-3600000).length;
@@ -248,6 +399,7 @@ function render(){
       '<span class="r"><div>'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
       '<div class="m">'+[r.nombre,r.pasajeros+' pax',r.maletas?r.maletas+' mal.':''].filter(Boolean).map(esc).join(', ')+'</div>'+
       (r.fuente==='propio'?'<span class="tag own">Propio</span>':'')+
+      (typeof r.importe==='number'?'<span class="tag">'+esc(eur(r.importe))+'</span>':'')+
       (r.clienteCuenta?'<span class="tag">'+esc(r.clienteCuenta)+'</span>':'')+
       (r.taxi?'<span class="tag taxi">Taxi '+esc(r.taxi)+'</span>':'')+
       (r.asignadoA&&r.asignadoA!==yo().uid?'<span class="tag other">Lo lleva '+esc(r.conductor||(r.asignadoEmail||'').split('@')[0]||'otro taxi')+'</span>':'')+'</span>'+
@@ -259,7 +411,11 @@ document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
   filter=b.dataset.f;render();
 }));
-$('list').addEventListener('click',e=>{const b=e.target.closest('.row');if(!b)return;const r=all.find(x=>x.id===b.dataset.id);if(r)openSheet(r);});
+$('search').addEventListener('input',()=>render());
+$('list').addEventListener('click',e=>{
+  const c=e.target.closest('.crow');
+  if(c){filter='todas';document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.f==='todas'));$('search').value=c.dataset.q||'';render();window.scrollTo(0,0);return;}
+  const b=e.target.closest('.row');if(!b)return;const r=all.find(x=>x.id===b.dataset.id);if(r)openSheet(r);});
 
 /* ---- ficha de reserva ---- */
 function openSheet(r){
@@ -273,6 +429,10 @@ function openSheet(r){
   if(r.estado!=='confirmada'&&!r.taxi&&!r.conductor){const t=miTaxi();$('aTaxi').value=t.taxi||'';$('aConductor').value=t.nombre||'';}
   if(r.asignadoA&&r.asignadoA!==yo().uid&&r.estado==='confirmada'){$('sError').textContent='';}
   $('btnConfirm').textContent=r.estado==='confirmada'?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
+  $('aImporte').value=typeof r.importe==='number'?String(r.importe).replace('.',','):'';
+  setSelect($('aAviso'),r.aviso==null?(miTaxi().aviso==null?30:miTaxi().aviso):r.aviso);
+  $('sGcal').textContent=r.gcalId&&gConnected()?'En tu Google Calendar':'';
+  $('btnGcal').hidden=gConnected()||r.estado==='cancelada';$('btnGcal').href=gcalLink(r);
   $('btnEditOwn').hidden=r.fuente!=='propio';
   $('btnCancel').hidden=r.estado==='cancelada';$('btnCancel').textContent='Cancelar reserva';
   const tel=String(r.telefono||'').replace(/[^\d+]/g,'');$('btnCall').hidden=!tel;$('btnCall').href=tel?'tel:'+tel:'#';
@@ -290,6 +450,8 @@ function openNew(r){
   $('nOrigen').value=v.origen||'';$('nDestino').value=v.destino||'';
   $('nNombre').value=v.nombre||'';$('nTel').value=v.telefono||'';
   $('nPax').value=v.pasajeros||1;$('nMal').value=v.maletas||0;$('nNotas').value=v.notas||'';
+  $('nImporte').value=typeof v.importe==='number'?String(v.importe).replace('.',','):'';
+  setSelect($('nAviso'),v.aviso==null?(miTaxi().aviso==null?30:miTaxi().aviso):v.aviso);
   $('nTitle').textContent=r?'Editar servicio':'Nuevo servicio';
   $('nSave').textContent=r?'Guardar cambios':'Guardar servicio';
   $('nError').textContent='';
@@ -306,9 +468,13 @@ $('nSave').onclick=async()=>{
     origen,destino,nombre:$('nNombre').value.trim(),telefono:$('nTel').value.trim(),
     pasajeros:Math.min(8,Math.max(1,parseInt($('nPax').value,10)||1)),
     maletas:Math.min(20,Math.max(0,parseInt($('nMal').value,10)||0)),
-    notas:$('nNotas').value.trim()
+    notas:$('nNotas').value.trim(),
+    importe:parseImporte($('nImporte').value),aviso:+$('nAviso').value
   };
+  if($('nImporte').value.trim()&&data.importe===null){$('nError').textContent='El importe no es un número válido.';return;}
   $('nSave').disabled=true;
+  let calFail=false;
+  if(gConnected()){try{data.gcalId=await syncEvent({...(editingOwn||{}),...data});}catch(e){calFail=true;}}
   try{
     if(editingOwn){
       await fdb.collection('reservas').doc(editingOwn.id).update({...data,actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
@@ -322,7 +488,7 @@ $('nSave').onclick=async()=>{
     $('newDlg').close();
     const hoy=new Date();hoy.setHours(0,0,0,0);
     const esHoy=new Date(fecha+'T12:00').toDateString()===hoy.toDateString();
-    toast(editingOwn?'Servicio actualizado.':'Servicio guardado.'+(filter==='hoy'&&!esHoy?' Lo verás en Próximas.':''));
+    toast(calFail?'Guardado, pero no en Google Calendar. Ábrelo y pulsa Editar para reintentar.':editingOwn?'Servicio actualizado.':'Servicio guardado.'+(filter==='hoy'&&!esHoy?' Lo verás en Próximas.':''));
     editingOwn=null;
   }catch(err){$('nError').textContent='Error: '+(err.code||err.message);}
   finally{$('nSave').disabled=false;}
@@ -331,21 +497,29 @@ $('nSave').onclick=async()=>{
 $('btnClose').onclick=()=>{$('sheet').close();selected=null;};
 $('btnConfirm').onclick=async()=>{
   if(!selected)return;
+  const imp=parseImporte($('aImporte').value);
+  if($('aImporte').value.trim()&&imp===null){$('sError').textContent='El importe no es un número válido.';return;}
+  const aviso=+$('aAviso').value;
+  const esMio=!selected.asignadoA||selected.asignadoA===yo().uid||selected.estado!=='confirmada';
   $('btnConfirm').disabled=true;
+  let gcalId=selected.gcalId||null,calFail=false;
+  if(gConnected()&&esMio){try{gcalId=await syncEvent({...selected,aviso});}catch(e){calFail=true;}}
   try{
     await fdb.collection('reservas').doc(selected.id).update({
+      importe:imp,aviso,...(gcalId?{gcalId}:{}),
       estado:'confirmada',
       ...((!selected.asignadoA||selected.estado!=='confirmada')?asignacion():{}),
       taxi:$('aTaxi').value.trim(),conductor:$('aConductor').value.trim(),notaCliente:$('aNota').value.trim(),
       actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
     });
-    $('sheet').close();selected=null;toast('Guardado. El cliente ya lo ve.');
+    $('sheet').close();selected=null;toast(calFail?'Guardado, pero no en Google Calendar. Ábrelo y pulsa Guardar para reintentar.':'Guardado. El cliente ya lo ve.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
   finally{$('btnConfirm').disabled=false;}
 };
 $('btnCancel').onclick=async()=>{
   if(!selected)return;
   if(!cancelArmed){cancelArmed=true;$('btnCancel').textContent='Pulsa otra vez para cancelar';return;}
+  if(selected.gcalId&&gConnected()){try{await gFetch('DELETE','/'+encodeURIComponent(selected.gcalId));}catch(e){toast('Bórralo también a mano en Google Calendar.');}}
   try{
     await fdb.collection('reservas').doc(selected.id).update({estado:'cancelada',notaCliente:$('aNota').value.trim(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
     $('sheet').close();selected=null;toast('Reserva cancelada.');
