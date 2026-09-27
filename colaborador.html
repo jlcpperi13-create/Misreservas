@@ -182,7 +182,7 @@ function card(x,tipo){
           :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
     }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>';
   }else if(x.estado==='cancelado'){
-    h+='<div class="row"><span class="pill cancelado">Cancelado por el taxista</span></div>';
+    h+='<div class="row"><span class="pill cancelado">Cancelado por el taxista</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='rechazado'){
     h+='<div class="row"><span class="pill rechazado">Rechazado</span></div>';
   }
@@ -192,7 +192,7 @@ function render(){
   const now=Date.now()-3*3600000;
   const nuevos=items.filter(x=>x.estado==='ofrecido').sort((a,b)=>ms(a)-ms(b));
   const acept=items.filter(x=>x.estado==='aceptado').sort((a,b)=>ms(a)-ms(b));
-  const avisos=items.filter(x=>x.estado==='cancelado'&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
+  const avisos=items.filter(x=>x.estado==='cancelado'&&!x.ocultoColab&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
   const hechos=items.filter(x=>x.estado==='hecho').sort((a,b)=>ms(b)-ms(a)).slice(0,15);
   let h='';
   if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
@@ -214,6 +214,12 @@ async function responder(x,estado,extra){
   await b.commit();
 }
 $('list').addEventListener('click',async e=>{
+  const hd=e.target.closest('[data-hide]');
+  if(hd){
+    try{await fdb.collection('cesiones').doc(hd.dataset.hide).update({ocultoColab:true});toast('Quitado de la lista.');}
+    catch(err){toast('Error: '+(err.code||err.message));}
+    return;
+  }
   const dv=e.target.closest('[data-dev]'),dok=e.target.closest('[data-devok]'),dno=e.target.closest('[data-devno]');
   if(dv){devArmed=dv.dataset.dev;render();const m=$('mot-'+devArmed);if(m)m.focus();return;}
   if(dno){devArmed=null;render();return;}
