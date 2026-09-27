@@ -222,6 +222,7 @@ function card(r,old){
     '<div class="meta">'+meta+'</div>'+(r.notas?'<div class="meta">'+esc(r.notas)+'</div>':'')+
     assign+
     (canCancel?'<button type="button" class="cancel" data-id="'+esc(r.id)+'">'+(cancelArmed===r.id?'Pulsa otra vez para cancelar':'Cancelar reserva')+'</button>':'')+
+    (r.estado==='cancelada'?'<button type="button" class="cancel hide" data-hide="'+esc(r.id)+'" style="color:var(--muted)">Quitar de la lista</button>':'')+
     '</div>';
 }
 function renderMine(){
@@ -232,8 +233,9 @@ function renderMine(){
   }
   const now=Date.now()-2*3600000;
   const ms=r=>r.fechaHora&&r.fechaHora.toMillis?r.fechaHora.toMillis():0;
-  const prox=mine.filter(r=>ms(r)>=now).sort((a,b)=>ms(a)-ms(b));
-  const ant=mine.filter(r=>ms(r)<now).sort((a,b)=>ms(b)-ms(a)).slice(0,20);
+  const vis=mine.filter(r=>!r.ocultoCliente);
+  const prox=vis.filter(r=>ms(r)>=now).sort((a,b)=>ms(a)-ms(b));
+  const ant=vis.filter(r=>ms(r)<now).sort((a,b)=>ms(b)-ms(a)).slice(0,20);
   let html='',cur='';
   for(const r of prox){const l=dayLabel(ms(r));if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}html+=card(r,false);}
   if(!prox.length)html+='<p class="empty">No tienes reservas próximas.</p>';
@@ -241,6 +243,12 @@ function renderMine(){
   el.innerHTML=html;
 }
 $('mias').addEventListener('click',async e=>{
+  const h=e.target.closest('[data-hide]');
+  if(h){
+    try{await fdb.collection('reservas').doc(h.dataset.hide).update({ocultoCliente:true});toast('Quitada de la lista.');}
+    catch(err){toast('No se pudo quitar ('+(err.code||err.message)+').');}
+    return;
+  }
   const b=e.target.closest('.cancel');if(!b)return;
   const id=b.dataset.id;
   if(cancelArmed!==id){cancelArmed=id;renderMine();return;}
