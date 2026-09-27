@@ -110,8 +110,8 @@ fauth.onAuthStateChanged(async u=>{
   $('loginView').hidden=true;$('appView').hidden=false;
   $('me').textContent=(me.nombre||'')+(me.taxi?' · Taxi '+me.taxi:'');
   known=null;
-  unsub=fdb.collection('cesiones').where('colaboradorUid','==',u.uid).onSnapshot(s=>{
-    items=s.docs.map(d=>({id:d.id,...d.data()}));
+  unsub=fdb.collection('cesiones').where('colaboradorUid','==',u.uid).onSnapshot({includeMetadataChanges:true},s=>{
+    items=s.docs.map(d=>({id:d.id,...d.data(),_pend:d.metadata.hasPendingWrites}));
     if(known){
       const nuevos=items.filter(x=>x.estado==='ofrecido'&&!known.has(x.id));
       if(nuevos.length){beep();try{navigator.vibrate&&navigator.vibrate([300,150,300]);}catch(e){}toast('Nuevo servicio: '+nuevos[0].horaTexto+' '+nuevos[0].origen);}
@@ -134,15 +134,26 @@ $('lBtn').onclick=async()=>{
 $('outBtn').onclick=()=>fauth.signOut();
 
 /* ---- datos del cliente (solo tras aceptar) ---- */
+const intentos={};
 async function cargarPrivados(){
+  let reintentar=false;
   for(const x of items){
-    if((x.estado==='aceptado'||x.estado==='hecho')&&!privado[x.id]){
-      privado[x.id]={cargando:true};
-      try{const d=await fdb.collection('cesiones').doc(x.id).collection('privado').doc('cliente').get();privado[x.id]=d.exists?d.data():{};}
-      catch(e){delete privado[x.id];}
-      render();
+    if(!(x.estado==='aceptado'||x.estado==='hecho')||privado[x.id])continue;
+    // Espera a que Firebase haya confirmado la aceptación antes de pedir los datos
+    if(x._pend){privado[x.id]=null;delete privado[x.id];continue;}
+    privado[x.id]={cargando:true};render();
+    try{
+      const d=await fdb.collection('cesiones').doc(x.id).collection('privado').doc('cliente').get({source:'server'});
+      privado[x.id]=d.exists?d.data():{};
+    }catch(e){
+      delete privado[x.id];
+      intentos[x.id]=(intentos[x.id]||0)+1;
+      if(intentos[x.id]<6)reintentar=true;
+      else privado[x.id]={error:true};
     }
+    render();
   }
+  if(reintentar)setTimeout(cargarPrivados,2000);
 }
 
 /* ---- pintar ---- */
@@ -157,7 +168,8 @@ function card(x,tipo){
     h+='<div class="meta">Los datos del cliente aparecen al aceptar.</div><div class="row"><button class="b pri" data-acc="'+esc(x.id)+'">Aceptar</button><button class="b bad" data-rej="'+esc(x.id)+'">'+(rejArmed===x.id?'¿Seguro?':'Rechazar')+'</button></div>';
   }else if(x.estado==='aceptado'||x.estado==='hecho'){
     const p=privado[x.id]||{};
-    if(p.cargando)h+='<div class="meta">Cargando datos del cliente…</div>';
+    if(p.cargando||(!p.nombre&&!p.telefono&&!p.error&&!privado[x.id]))h+='<div class="meta">Cargando datos del cliente…</div>';
+    else if(p.error)h+='<div class="meta">No se pudieron cargar los datos del cliente. Cierra y vuelve a abrir la app.</div>';
     else if(p.nombre||p.telefono||p.notas)h+='<div class="cli">'+(p.nombre?'<b>'+esc(p.nombre)+'</b>':'')+(p.telefono?'<div>'+esc(p.telefono)+'</div>':'')+(p.notas?'<div>'+esc(p.notas)+'</div>':'')+'</div>';
     if(x.estado==='aceptado'){
       const tel=String(p.telefono||'').replace(/[^\d+]/g,'');
