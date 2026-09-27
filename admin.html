@@ -78,6 +78,14 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
 .crow .c{font-variant-numeric:tabular-nums;color:var(--muted)}
 .crow .e{font-variant-numeric:tabular-nums;font-weight:700;min-width:5.5em;text-align:right}
 .gcal{display:inline-block;margin-top:6px;font-size:.85rem;color:var(--ok)}
+.bulk{width:100%;background:none;border:1px dashed var(--line);color:var(--bad);border-radius:8px;padding:10px;font:inherit;font-weight:600;cursor:pointer;margin-bottom:10px}
+.tag.col{color:#8FB8FF;border-color:currentColor}
+.tag.col.rej{color:var(--bad)}
+.cstate{font-size:.92rem;margin:0 0 10px;overflow-wrap:anywhere}
+.clist .it{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px}
+.clist .it small{display:block;color:var(--muted)}
+.mini{background:none;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+.sec{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
 .tag.own{color:var(--amber);border-color:currentColor}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--amber);color:var(--amber-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
@@ -123,9 +131,35 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
   <div class="field"><label for="meAviso">Aviso por defecto en Google Calendar</label>
     <select id="meAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
   <button class="btn" type="button" id="gBtn" hidden style="width:100%;margin-bottom:12px">Conectar Google Calendar</button>
+  <button class="btn" type="button" id="colBtn" style="width:100%;margin-bottom:12px">Colaboradores</button>
   <div class="actions">
     <button class="submit" type="button" id="meSave">Guardar</button>
     <button class="btn" type="button" id="meClose">Cerrar</button>
+  </div>
+</dialog>
+
+<dialog id="colDlg">
+  <h2>Colaboradores</h2>
+  <p class="sub" style="margin:0 0 12px">Taxistas a los que puedes pasar servicios. Primero crea su cuenta en Firebase, Authentication, Usuarios, y copia aquí su UID.</p>
+  <div class="clist" id="colList"></div>
+  <div class="box">
+    <h3 id="colFormTitle">Añadir colaborador</h3>
+    <div class="field"><label for="colUid">UID de su cuenta</label><input type="text" id="colUid" autocomplete="off"></div>
+    <div class="grid2">
+      <div class="field"><label for="colNombre">Nombre</label><input type="text" id="colNombre" autocomplete="off"></div>
+      <div class="field"><label for="colTaxi">Número de taxi</label><input type="text" id="colTaxi" inputmode="numeric" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="colTel">Teléfono (para avisarle por WhatsApp)</label><input type="tel" id="colTel" inputmode="tel" autocomplete="off"></div>
+    <div class="grid2">
+      <div class="field"><label for="colComTipo">Comisión</label>
+        <select id="colComTipo"><option value="ninguna">Sin comisión</option><option value="porcentaje">Porcentaje (%)</option><option value="fija">Fija por servicio (€)</option></select></div>
+      <div class="field"><label for="colComVal">Valor</label><input type="text" id="colComVal" inputmode="decimal" autocomplete="off" placeholder="10"></div>
+    </div>
+    <div class="error" id="colErr"></div>
+  </div>
+  <div class="actions">
+    <button class="submit" type="button" id="colSave">Guardar colaborador</button>
+    <button class="btn" type="button" id="colClose">Cerrar</button>
   </div>
 </dialog>
 
@@ -170,6 +204,18 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     </div>
     <div class="field"><label for="aNota">Nota para el cliente</label><textarea id="aNota" placeholder="Te recoge mi compañero en la puerta principal…"></textarea></div>
   </div>
+  <div class="box" id="cBox">
+    <h3>Pasar a colaborador</h3>
+    <p class="cstate" id="cState"></p>
+    <div id="cForm">
+      <div class="field"><select id="cSel" aria-label="Colaborador"></select></div>
+      <button class="btn" type="button" id="cSend" style="width:100%;margin-bottom:12px">Pasar servicio</button>
+    </div>
+    <div class="actions" id="cActs">
+      <a class="btn" id="cWa" href="#" target="_blank" rel="noopener">Avisar por WhatsApp</a>
+      <button class="btn bad" type="button" id="cRetirar">Retirar</button>
+    </div>
+  </div>
   <div class="box">
     <h3>Para ti</h3>
     <div class="grid2">
@@ -186,6 +232,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <a class="btn" id="btnCall" href="#">Llamar</a>
     <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
     <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
+    <button class="btn bad" type="button" id="btnDelete" hidden>Eliminar definitivamente</button>
     <button class="btn" type="button" id="btnClose">Cerrar</button>
   </div>
 </dialog>
@@ -202,8 +249,10 @@ if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const fauth=firebase.auth(), fdb=firebase.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CESION={ofrecido:'sin responder',aceptado:'aceptado',rechazado:'rechazado',hecho:'hecho',cancelado:'cancelado'};
 const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada'};
-let all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
+let colabs=[], cesiones={}, unsubC=null, unsubS=null, retArmed=false, colDelArmed=null;
+let delArmed=false, bulkArmed=false, all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,7000);}
 function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
@@ -301,7 +350,7 @@ function asignacion(){const u=yo();return u?{asignadoA:u.uid,asignadoEmail:u.ema
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(u=>{
   if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();}
-  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}known=null;}
+  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}known=null;}
 });
 $('loginBtn').onclick=async()=>{
   unlockAudio();
@@ -316,7 +365,20 @@ $('loginBtn').onclick=async()=>{
 $('outBtn').onclick=()=>fauth.signOut();
 
 /* ---- reservas en directo ---- */
+function subscribeExtra(){
+  if(unsubC)unsubC();
+  unsubC=fdb.collection('colaboradores').onSnapshot(s=>{
+    colabs=s.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'','es'));
+    if($('colDlg').open)renderColabs();
+  },()=>{});
+  if(unsubS)unsubS();
+  unsubS=fdb.collection('cesiones').onSnapshot(s=>{
+    cesiones={};s.docs.forEach(d=>{cesiones[d.id]={id:d.id,...d.data()};});
+    if(filter==='resumen')render();
+  },()=>{});
+}
 function subscribe(){
+  subscribeExtra();
   if(unsub)unsub();
   unsub=fdb.collection('reservas').orderBy('fechaHora','asc').onSnapshot(snap=>{
     const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -369,6 +431,21 @@ function renderResumen(){
       '<span class="c">'+g.count+(g.count===1?' servicio':' servicios')+(g.sin?'<br><small>'+g.sin+' sin importe</small>':'')+'</span>'+
       '<span class="e">'+esc(eur(g.imp))+'</span></button>';
   }
+  const ces=Object.values(cesiones).filter(c=>c.estado==='hecho'&&c.fechaHora&&c.fechaHora.toMillis&&c.fechaHora.toMillis()>=ini&&c.fechaHora.toMillis()<fin);
+  if(ces.length){
+    const cm=new Map();let totCom=0;
+    for(const c of ces){
+      let g=cm.get(c.colaboradorUid);if(!g){g={n:c.colaboradorNombre||'Colaborador',count:0,imp:0,com:0,sin:0};cm.set(c.colaboradorUid,g);}
+      g.count++;const imp=typeof c.importe==='number'?c.importe:null;if(imp!==null)g.imp+=imp;
+      let com=0;if(c.comisionTipo==='fija')com=+c.comisionValor||0;else if(c.comisionTipo==='porcentaje'){if(imp===null)g.sin++;else com=imp*(+c.comisionValor||0)/100;}
+      g.com+=com;totCom+=com;
+    }
+    html+='<div class="sec">Servicios cedidos · comisiones '+esc(eur(totCom))+'</div>';
+    for(const g of [...cm.values()].sort((a,b)=>b.count-a.count)){
+      html+='<div class="crow" style="cursor:default"><span class="n">'+esc(g.n)+'<small>Cobrado por él: '+esc(eur(g.imp))+(g.sin?' · '+g.sin+' sin importe':'')+'</small></span>'+
+        '<span class="c">'+g.count+(g.count===1?' servicio':' servicios')+'</span><span class="e">'+esc(eur(g.com))+'</span></div>';
+    }
+  }
   $('summary').textContent='';
   $('list').innerHTML=html;
   $('mPrev').onclick=()=>{resMes.m--;if(resMes.m<0){resMes.m=11;resMes.y--;}render();};
@@ -392,6 +469,10 @@ function render(){
   $('summary').innerHTML=pend?'<b>'+pend+' pendiente'+(pend===1?'':'s')+'</b>':items.length+' reserva'+(items.length===1?'':'s');
   if(!items.length){$('list').innerHTML='<p class="empty">No hay reservas en este rango.</p>';return;}
   let html='',cur='';
+  if(filter==='todas'&&!$('search').value.trim()){
+    const nc=all.filter(r=>r.estado==='cancelada').length;
+    if(nc)html+='<button type="button" class="bulk" id="bulkDel">'+(bulkArmed?'Pulsa otra vez para eliminar las '+nc+' canceladas':'Eliminar las '+nc+' reservas canceladas')+'</button>';
+  }
   for(const r of items){
     const l=dayLabel(ms(r));if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}
     html+='<button type="button" class="row '+esc(r.estado)+'" data-id="'+esc(r.id)+'">'+
@@ -402,7 +483,8 @@ function render(){
       (typeof r.importe==='number'?'<span class="tag">'+esc(eur(r.importe))+'</span>':'')+
       (r.clienteCuenta?'<span class="tag">'+esc(r.clienteCuenta)+'</span>':'')+
       (r.taxi?'<span class="tag taxi">Taxi '+esc(r.taxi)+'</span>':'')+
-      (r.asignadoA&&r.asignadoA!==yo().uid?'<span class="tag other">Lo lleva '+esc(r.conductor||(r.asignadoEmail||'').split('@')[0]||'otro taxi')+'</span>':'')+'</span>'+
+      (r.colaboradorUid?'<span class="tag col'+(r.cesion==='rechazado'?' rej':'')+'">'+esc((r.colaboradorNombre||'Colaborador')+': '+(CESION[r.cesion]||r.cesion||''))+'</span>':'')+
+      (!r.colaboradorUid&&r.asignadoA&&r.asignadoA!==yo().uid?'<span class="tag other">Lo lleva '+esc(r.conductor||(r.asignadoEmail||'').split('@')[0]||'otro taxi')+'</span>':'')+'</span>'+
       '<span class="dot '+esc(r.estado)+'" aria-label="'+esc(ESTADO[r.estado]||r.estado)+'"></span></button>';
   }
   $('list').innerHTML=html;
@@ -433,7 +515,9 @@ function openSheet(r){
   setSelect($('aAviso'),r.aviso==null?(miTaxi().aviso==null?30:miTaxi().aviso):r.aviso);
   $('sGcal').textContent=r.gcalId&&gConnected()?'En tu Google Calendar':'';
   $('btnGcal').hidden=gConnected()||r.estado==='cancelada';$('btnGcal').href=gcalLink(r);
+  renderCesionBox(r);
   $('btnEditOwn').hidden=r.fuente!=='propio';
+  delArmed=false;$('btnDelete').hidden=r.estado!=='cancelada';$('btnDelete').textContent='Eliminar definitivamente';
   $('btnCancel').hidden=r.estado==='cancelada';$('btnCancel').textContent='Cancelar reserva';
   const tel=String(r.telefono||'').replace(/[^\d+]/g,'');$('btnCall').hidden=!tel;$('btnCall').href=tel?'tel:'+tel:'#';
   $('sError').textContent='';
@@ -494,6 +578,139 @@ $('nSave').onclick=async()=>{
   finally{$('nSave').disabled=false;}
 };
 
+/* ---- colaboradores: pasar servicios ---- */
+function telWa(t){let d=String(t||'').replace(/\D/g,'');if(d.length===9)d='34'+d;return d;}
+function waLink(c,r){
+  const tel=telWa(c&&c.telefono);if(!tel)return '';
+  const f=(r.fechaTexto||'').split('-').reverse().join('/');
+  const txt='Hola '+(c.nombre||'')+', te paso un servicio: '+f+' a las '+r.horaTexto+', de '+(r.origen||'')+' a '+(r.destino||'')+', '+(r.pasajeros||1)+' pax. Acéptalo o recházalo en la app de colaboradores.';
+  return 'https://wa.me/'+tel+'?text='+encodeURIComponent(txt);
+}
+function renderCesionBox(r){
+  retArmed=false;$('cRetirar').textContent='Retirar';
+  const box=$('cBox');
+  if(r.estado==='cancelada'&&!r.colaboradorUid){box.hidden=true;return;}
+  box.hidden=false;
+  const c=colabs.find(x=>x.uid===r.colaboradorUid);
+  const activo=r.colaboradorUid&&r.cesion!=='rechazado';
+  if(activo){
+    const nom=r.colaboradorNombre||(c&&c.nombre)||'colaborador';
+    $('cState').textContent='Pasado a '+nom+': '+(CESION[r.cesion]||r.cesion)+'.'+(r.cesion==='ofrecido'?' Aún no ha respondido.':'');
+    $('cForm').hidden=true;$('cActs').hidden=false;
+    const wa=waLink(c,r);$('cWa').hidden=!(wa&&r.cesion==='ofrecido');$('cWa').href=wa||'#';
+    $('cRetirar').hidden=!(r.cesion==='ofrecido'||r.cesion==='aceptado');
+    return;
+  }
+  $('cActs').hidden=true;
+  if(!colabs.length){$('cState').textContent='Aún no tienes colaboradores. Añádelos en Mi taxi, Colaboradores.';$('cForm').hidden=true;return;}
+  $('cState').textContent=r.cesion==='rechazado'?('Rechazado por '+(r.colaboradorNombre||'el colaborador')+'. Puedes pasárselo a otro.'):'Elige a quién se lo pasas. Verá el recorrido, y los datos del cliente solo cuando lo acepte.';
+  $('cSel').innerHTML=colabs.map(x=>'<option value="'+esc(x.uid)+'">'+esc((x.nombre||'Sin nombre')+(x.taxi?' · taxi '+x.taxi:''))+'</option>').join('');
+  $('cForm').hidden=r.estado==='cancelada';
+}
+$('cSend').onclick=async()=>{
+  if(!selected)return;
+  const uid=$('cSel').value,c=colabs.find(x=>x.uid===uid),r=selected;if(!c)return;
+  $('cSend').disabled=true;
+  try{
+    const ts=firebase.firestore.FieldValue.serverTimestamp();
+    const ref=fdb.collection('cesiones').doc(r.id);
+    const b=fdb.batch();
+    b.set(ref,{reservaId:r.id,colaboradorUid:uid,colaboradorNombre:c.nombre||'',estado:'ofrecido',
+      fechaHora:r.fechaHora,fechaTexto:r.fechaTexto||'',horaTexto:r.horaTexto||'',origen:r.origen||'',destino:r.destino||'',
+      pasajeros:r.pasajeros||1,maletas:r.maletas||0,comisionTipo:c.comisionTipo||'ninguna',comisionValor:+c.comisionValor||0,
+      importe:null,taxi:'',conductor:'',creadoEn:ts});
+    b.set(ref.collection('privado').doc('cliente'),{nombre:r.nombre||'',telefono:r.telefono||'',notas:r.notas||''});
+    b.update(fdb.collection('reservas').doc(r.id),{colaboradorUid:uid,colaboradorNombre:c.nombre||'',cesion:'ofrecido',actualizadoEn:ts});
+    await b.commit();
+    selected={...r,colaboradorUid:uid,colaboradorNombre:c.nombre||'',cesion:'ofrecido'};
+    renderCesionBox(selected);
+    toast('Pasado a '+(c.nombre||'colaborador')+'.'+(waLink(c,r)?' Pulsa «Avisar por WhatsApp» para avisarle.':''));
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+  finally{$('cSend').disabled=false;}
+};
+async function quitarCesion(r,b){
+  const del=firebase.firestore.FieldValue.delete();
+  const ref=fdb.collection('cesiones').doc(r.id);
+  b.delete(ref.collection('privado').doc('cliente'));b.delete(ref);
+}
+$('cRetirar').onclick=async()=>{
+  if(!selected)return;
+  if(!retArmed){retArmed=true;$('cRetirar').textContent='Pulsa otra vez para retirar';return;}
+  const r=selected,del=firebase.firestore.FieldValue.delete();
+  try{
+    const b=fdb.batch();await quitarCesion(r,b);
+    const upd={colaboradorUid:del,colaboradorNombre:del,cesion:del,actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()};
+    if(r.cesion==='aceptado'){upd.taxi='';upd.conductor='';}
+    b.update(fdb.collection('reservas').doc(r.id),upd);
+    await b.commit();
+    selected={...r};delete selected.colaboradorUid;delete selected.colaboradorNombre;delete selected.cesion;
+    renderCesionBox(selected);toast('Servicio retirado al colaborador.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
+
+/* ---- colaboradores: gestión ---- */
+function renderColabs(){
+  const com=c=>c.comisionTipo==='porcentaje'?(c.comisionValor+' %'):c.comisionTipo==='fija'?eur(+c.comisionValor||0)+' por servicio':'Sin comisión';
+  $('colList').innerHTML=colabs.length?colabs.map(c=>'<div class="it"><span><b>'+esc(c.nombre||'Sin nombre')+'</b>'+
+    '<small>'+esc([c.taxi&&'Taxi '+c.taxi,c.telefono,com(c)].filter(Boolean).join(' · '))+'</small></span>'+
+    '<span><button type="button" class="mini" data-edit="'+esc(c.uid)+'">Editar</button> <button type="button" class="mini" data-del="'+esc(c.uid)+'" style="color:var(--bad)">'+(colDelArmed===c.uid?'¿Seguro?':'Quitar')+'</button></span></div>').join('')
+    :'<p class="empty" style="padding:10px">Todavía no hay colaboradores.</p>';
+}
+function colForm(c){
+  $('colFormTitle').textContent=c?'Editar colaborador':'Añadir colaborador';
+  $('colUid').value=c?c.uid:'';$('colUid').disabled=!!c;
+  $('colNombre').value=c?c.nombre||'':'';$('colTaxi').value=c?c.taxi||'':'';$('colTel').value=c?c.telefono||'':'';
+  $('colComTipo').value=c?c.comisionTipo||'ninguna':'ninguna';$('colComVal').value=c&&c.comisionValor?String(c.comisionValor).replace('.',','):'';
+  $('colErr').textContent='';
+}
+$('colBtn').onclick=()=>{$('meDlg').close();colDelArmed=null;renderColabs();colForm(null);$('colDlg').showModal();};
+$('colClose').onclick=()=>$('colDlg').close();
+$('colList').addEventListener('click',async e=>{
+  const ed=e.target.closest('[data-edit]'),dl=e.target.closest('[data-del]');
+  if(ed){colForm(colabs.find(c=>c.uid===ed.dataset.edit));return;}
+  if(dl){
+    const uid=dl.dataset.del;
+    if(colDelArmed!==uid){colDelArmed=uid;renderColabs();return;}
+    colDelArmed=null;
+    try{await fdb.collection('colaboradores').doc(uid).delete();toast('Colaborador quitado. Ya no puede entrar en su panel.');}
+    catch(err){toast('Error: '+(err.code||err.message));}
+  }
+});
+$('colSave').onclick=async()=>{
+  const uid=$('colUid').value.trim(),nombre=$('colNombre').value.trim();
+  if(!uid||uid.length<20||/\s/.test(uid)){$('colErr').textContent='Pega el UID completo de su cuenta, sin espacios.';return;}
+  if(!nombre){$('colErr').textContent='Pon su nombre.';return;}
+  if(uid===yo().uid){$('colErr').textContent='Ese es tu propio UID.';return;}
+  const tipo=$('colComTipo').value,val=parseImporte($('colComVal').value);
+  if(tipo!=='ninguna'&&val===null){$('colErr').textContent='Pon el valor de la comisión.';return;}
+  try{
+    await fdb.collection('colaboradores').doc(uid).set({nombre,taxi:$('colTaxi').value.trim(),telefono:$('colTel').value.trim(),
+      comisionTipo:tipo,comisionValor:tipo==='ninguna'?0:val,actualizado:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    toast('Colaborador guardado.');colForm(null);
+  }catch(err){$('colErr').textContent='Error: '+(err.code||err.message);}
+};
+
+$('btnDelete').onclick=async()=>{
+  if(!selected||selected.estado!=='cancelada')return;
+  if(!delArmed){delArmed=true;$('btnDelete').textContent='Pulsa otra vez para eliminar';return;}
+  try{
+    const b=fdb.batch();await quitarCesion(selected,b);b.delete(fdb.collection('reservas').doc(selected.id));await b.commit();
+    $('sheet').close();selected=null;toast('Reserva eliminada.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
+$('list').addEventListener('click',async e=>{
+  if(!e.target.closest('#bulkDel'))return;
+  if(!bulkArmed){bulkArmed=true;render();setTimeout(()=>{if(bulkArmed){bulkArmed=false;render();}},6000);return;}
+  bulkArmed=false;
+  const ids=all.filter(r=>r.estado==='cancelada').map(r=>r.id);
+  try{
+    for(let i=0;i<ids.length;i+=150){
+      const b=fdb.batch();ids.slice(i,i+150).forEach(id=>{const ref=fdb.collection('cesiones').doc(id);b.delete(ref.collection('privado').doc('cliente'));b.delete(ref);b.delete(fdb.collection('reservas').doc(id));});await b.commit();
+    }
+    toast(ids.length+(ids.length===1?' reserva eliminada.':' reservas eliminadas.'));
+  }catch(err){toast('No se pudieron eliminar ('+(err.code||err.message)+').');render();}
+});
+
 $('btnClose').onclick=()=>{$('sheet').close();selected=null;};
 $('btnConfirm').onclick=async()=>{
   if(!selected)return;
@@ -521,7 +738,10 @@ $('btnCancel').onclick=async()=>{
   if(!cancelArmed){cancelArmed=true;$('btnCancel').textContent='Pulsa otra vez para cancelar';return;}
   if(selected.gcalId&&gConnected()){try{await gFetch('DELETE','/'+encodeURIComponent(selected.gcalId));}catch(e){toast('Bórralo también a mano en Google Calendar.');}}
   try{
-    await fdb.collection('reservas').doc(selected.id).update({estado:'cancelada',notaCliente:$('aNota').value.trim(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    const b=fdb.batch();
+    b.update(fdb.collection('reservas').doc(selected.id),{estado:'cancelada',notaCliente:$('aNota').value.trim(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),...(selected.colaboradorUid?{cesion:'cancelado'}:{})});
+    if(selected.colaboradorUid&&cesiones[selected.id])b.update(fdb.collection('cesiones').doc(selected.id),{estado:'cancelado'});
+    await b.commit();
     $('sheet').close();selected=null;toast('Reserva cancelada.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
 };
