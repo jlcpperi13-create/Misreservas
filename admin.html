@@ -389,9 +389,13 @@ function subscribe(){
         const r=nuevas[0];toast('Nueva reserva: '+r.horaTexto+' '+r.origen+(r.clienteCuenta?' ('+r.clienteCuenta+')':''));}
     }
     if(known&&window._cesPrev){
-      const vuelta=docs.find(r=>(r.cesion==='devuelto'||r.cesion==='rechazado')&&window._cesPrev[r.id]&&window._cesPrev[r.id]!==r.cesion);
-      if(vuelta){beep();try{navigator.vibrate&&navigator.vibrate([400,150,400]);}catch(e){}
-        toast((vuelta.cesion==='devuelto'?'Devuelto: ':'Rechazado: ')+vuelta.horaTexto+' '+vuelta.origen+' ('+(vuelta.colaboradorNombre||'colaborador')+')');}
+      const TXT={aceptado:'Aceptado',hecho:'Finalizado',rechazado:'Rechazado',devuelto:'Devuelto'};
+      const cambio=docs.find(r=>TXT[r.cesion]&&window._cesPrev[r.id]&&window._cesPrev[r.id]!==r.cesion);
+      if(cambio){
+        beep();const malo=cambio.cesion==='rechazado'||cambio.cesion==='devuelto';
+        try{navigator.vibrate&&navigator.vibrate(malo?[400,150,400]:[200,100,200]);}catch(e){}
+        toast(TXT[cambio.cesion]+': '+cambio.horaTexto+' '+cambio.origen+' ('+(cambio.colaboradorNombre||'colaborador')+')');
+      }
     }
     window._cesPrev={};docs.forEach(r=>{if(r.cesion)window._cesPrev[r.id]=r.cesion;});
     known=new Set(docs.map(r=>r.id));
