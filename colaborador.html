@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#171A1F">
+<title>MisReservas · Colaboradores</title>
+<link rel="manifest" href="manifest-colab.json">
+<link rel="icon" href="colab-192.png">
+<style>
+:root{--bg:#171A1F;--card:#1F242C;--line:#303742;--ink:#ECEFF3;--muted:#98A2B0;--acc:#6FA0F5;--acc-ink:#071A3A;--ok:#4CC38A;--warn:#E8A33D;--bad:#F07A6E}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.wrap{max-width:620px;margin:0 auto;padding:16px 16px 48px}
+.brand{font-weight:700;font-size:1.2rem}.brand span{color:var(--acc)}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+.me{color:var(--muted);font-size:.9rem;margin-bottom:14px}
+.out{background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+.loginCard{max-width:400px;margin:12vh auto 0;padding:0 18px}
+.sub{color:var(--muted);margin:6px 0 20px}
+.field{margin-bottom:14px}
+label{display:block;color:var(--muted);font-size:.9rem;margin-bottom:6px}
+input{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:12px 13px;font:inherit;min-height:48px}
+.error{color:var(--bad);min-height:1.3em;margin:6px 0 10px}
+.submit{width:100%;background:var(--acc);color:var(--acc-ink);border:0;border-radius:8px;padding:14px;font:inherit;font-weight:700;cursor:pointer}
+.sec{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
+.sec.new{color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+.card.nuevo{border-color:var(--acc)}
+.card.old{opacity:.7}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.when{font-weight:700;font-size:1.25rem;font-variant-numeric:tabular-nums}
+.day{color:var(--muted);font-size:.9rem}
+.route{margin-top:6px;overflow-wrap:anywhere}
+.meta{color:var(--muted);font-size:.88rem;margin-top:4px;overflow-wrap:anywhere}
+.cli{margin-top:10px;border-left:3px solid var(--ok);padding:7px 10px;background:rgba(76,195,138,.08);border-radius:0 6px 6px 0;overflow-wrap:anywhere}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.row>*{flex:1}
+.b{border:1px solid var(--line);background:none;color:var(--ink);border-radius:8px;padding:12px;font:inherit;font-weight:600;cursor:pointer;text-align:center;text-decoration:none}
+.b.pri{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+.b.ok{background:var(--ok);color:#06240F;border-color:transparent}
+.b.bad{color:var(--bad)}
+.imp{display:flex;gap:8px;margin-top:10px}
+.imp input{flex:1}
+.pill{font-size:.78rem;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.pill.hecho{background:rgba(76,195,138,.18);color:var(--ok)}
+.pill.cancelado{background:rgba(240,122,110,.18);color:var(--bad)}
+.pill.rechazado{background:rgba(152,162,176,.18);color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:26px 10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--acc);color:var(--acc-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+<div id="loginView" hidden>
+  <div class="loginCard">
+    <div class="brand">Mis<span>Reservas</span> · Colaboradores</div>
+    <p class="sub">Entra con la cuenta que te ha dado el taxista.</p>
+    <div class="field"><label for="lEmail">Correo</label><input type="email" id="lEmail" autocomplete="username"></div>
+    <div class="field"><label for="lPass">Contraseña</label><input type="password" id="lPass" autocomplete="current-password"></div>
+    <div class="error" id="lError"></div>
+    <button class="submit" type="button" id="lBtn">Entrar</button>
+  </div>
+</div>
+
+<div class="wrap" id="appView" hidden>
+  <header>
+    <div class="brand">Mis<span>Reservas</span></div>
+    <button class="out" id="outBtn" type="button">Salir</button>
+  </header>
+  <div class="me" id="me"></div>
+  <div id="list"><p class="empty">Cargando…</p></div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+(function(){
+if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const fauth=firebase.auth(), fdb=firebase.firestore();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ts=()=>firebase.firestore.FieldValue.serverTimestamp();
+let me=null, items=[], privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null;
+
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,5000);}
+function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
+document.addEventListener('pointerdown',unlockAudio,{passive:true});
+function beep(){if(!audioCtx)return;try{const t0=audioCtx.currentTime;[880,1175,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=f;const s=t0+i*0.22;g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.3,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+0.2);o.connect(g).connect(audioCtx.destination);o.start(s);o.stop(s+0.22);});}catch(e){}}
+
+/* ---- sesión ---- */
+fauth.onAuthStateChanged(async u=>{
+  if(unsub){unsub();unsub=null;}
+  if(!u||u.isAnonymous){$('appView').hidden=true;$('loginView').hidden=false;return;}
+  try{
+    const d=await fdb.collection('colaboradores').doc(u.uid).get();
+    if(!d.exists)throw {code:'no-colab'};
+    me=d.data();
+  }catch(e){
+    await fauth.signOut();
+    $('lError').textContent='Esta cuenta no está dada de alta como colaborador.';
+    return;
+  }
+  $('loginView').hidden=true;$('appView').hidden=false;
+  $('me').textContent=(me.nombre||'')+(me.taxi?' · Taxi '+me.taxi:'');
+  known=null;
+  unsub=fdb.collection('cesiones').where('colaboradorUid','==',u.uid).onSnapshot(s=>{
+    items=s.docs.map(d=>({id:d.id,...d.data()}));
+    if(known){
+      const nuevos=items.filter(x=>x.estado==='ofrecido'&&!known.has(x.id));
+      if(nuevos.length){beep();try{navigator.vibrate&&navigator.vibrate([300,150,300]);}catch(e){}toast('Nuevo servicio: '+nuevos[0].horaTexto+' '+nuevos[0].origen);}
+      const canc=items.filter(x=>x.estado==='cancelado'&&known.get(x.id)&&known.get(x.id)!=='cancelado');
+      if(canc.length)toast('Cancelado: servicio de las '+canc[0].horaTexto);
+    }
+    known=new Map(items.map(x=>[x.id,x.estado]));
+    cargarPrivados();render();
+  },e=>{$('list').innerHTML='<p class="empty">No se pudieron cargar los servicios ('+esc(e.code||e.message)+').</p>';});
+});
+$('lBtn').onclick=async()=>{
+  unlockAudio();
+  const e=$('lEmail').value.trim(),p=$('lPass').value;$('lError').textContent='';
+  if(!e||!p){$('lError').textContent='Escribe el correo y la contraseña.';return;}
+  $('lBtn').disabled=true;
+  try{await fauth.signInWithEmailAndPassword(e,p);$('lPass').value='';}
+  catch(err){$('lError').textContent=(err.code||'').includes('invalid-credential')?'Correo o contraseña incorrectos.':'Error: '+(err.code||err.message);}
+  finally{$('lBtn').disabled=false;}
+};
+$('outBtn').onclick=()=>fauth.signOut();
+
+/* ---- datos del cliente (solo tras aceptar) ---- */
+async function cargarPrivados(){
+  for(const x of items){
+    if((x.estado==='aceptado'||x.estado==='hecho')&&!privado[x.id]){
+      privado[x.id]={cargando:true};
+      try{const d=await fdb.collection('cesiones').doc(x.id).collection('privado').doc('cliente').get();privado[x.id]=d.exists?d.data():{};}
+      catch(e){delete privado[x.id];}
+      render();
+    }
+  }
+}
+
+/* ---- pintar ---- */
+const ms=x=>x.fechaHora&&x.fechaHora.toMillis?x.fechaHora.toMillis():0;
+function dia(t){const d=new Date(t);d.setHours(0,0,0,0);const h=new Date();h.setHours(0,0,0,0);const n=Math.round((d-h)/86400000);
+  if(n===0)return 'Hoy';if(n===1)return 'Mañana';if(n===-1)return 'Ayer';return d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});}
+function card(x,tipo){
+  const pax=(x.pasajeros||1)+' pax'+(x.maletas?', '+x.maletas+' maletas':'');
+  let h='<div class="card'+(tipo==='nuevo'?' nuevo':'')+(tipo==='old'?' old':'')+'"><div class="top"><span class="when">'+esc(x.horaTexto)+'</span><span class="day">'+esc(dia(ms(x)))+'</span></div>'+
+    '<div class="route">'+esc(x.origen)+' → '+esc(x.destino)+'</div><div class="meta">'+esc(pax)+'</div>';
+  if(tipo==='nuevo'){
+    h+='<div class="meta">Los datos del cliente aparecen al aceptar.</div><div class="row"><button class="b pri" data-acc="'+esc(x.id)+'">Aceptar</button><button class="b bad" data-rej="'+esc(x.id)+'">'+(rejArmed===x.id?'¿Seguro?':'Rechazar')+'</button></div>';
+  }else if(x.estado==='aceptado'||x.estado==='hecho'){
+    const p=privado[x.id]||{};
+    if(p.cargando)h+='<div class="meta">Cargando datos del cliente…</div>';
+    else if(p.nombre||p.telefono||p.notas)h+='<div class="cli">'+(p.nombre?'<b>'+esc(p.nombre)+'</b>':'')+(p.telefono?'<div>'+esc(p.telefono)+'</div>':'')+(p.notas?'<div>'+esc(p.notas)+'</div>':'')+'</div>';
+    if(x.estado==='aceptado'){
+      const tel=String(p.telefono||'').replace(/[^\d+]/g,'');
+      h+='<div class="imp"><input type="text" inputmode="decimal" placeholder="Importe cobrado (€)" id="imp-'+esc(x.id)+'"><button class="b ok" data-done="'+esc(x.id)+'">Hecho</button></div>'+
+        (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'');
+    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>';
+  }else if(x.estado==='cancelado'){
+    h+='<div class="row"><span class="pill cancelado">Cancelado por el taxista</span></div>';
+  }else if(x.estado==='rechazado'){
+    h+='<div class="row"><span class="pill rechazado">Rechazado</span></div>';
+  }
+  return h+'</div>';
+}
+function render(){
+  const now=Date.now()-3*3600000;
+  const nuevos=items.filter(x=>x.estado==='ofrecido').sort((a,b)=>ms(a)-ms(b));
+  const acept=items.filter(x=>x.estado==='aceptado').sort((a,b)=>ms(a)-ms(b));
+  const avisos=items.filter(x=>x.estado==='cancelado'&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
+  const hechos=items.filter(x=>x.estado==='hecho').sort((a,b)=>ms(b)-ms(a)).slice(0,15);
+  let h='';
+  if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
+  if(acept.length)h+='<div class="sec">Aceptados</div>'+acept.map(x=>card(x,'')).join('');
+  if(avisos.length)h+='<div class="sec">Cancelados</div>'+avisos.map(x=>card(x,'old')).join('');
+  if(hechos.length)h+='<div class="sec">Hechos</div>'+hechos.map(x=>card(x,'old')).join('');
+  $('list').innerHTML=h||'<p class="empty">No tienes servicios. Cuando te pasen uno, sonará un aviso si tienes esta app abierta.</p>';
+}
+
+/* ---- acciones ---- */
+async function responder(x,estado,extra){
+  const b=fdb.batch();
+  const c={estado,respondidoEn:ts(),...(extra||{})};
+  b.update(fdb.collection('cesiones').doc(x.id),c);
+  const r={cesion:estado,actualizadoEn:ts()};
+  if(estado==='aceptado'){r.estado='confirmada';r.taxi=me.taxi||'';r.conductor=me.nombre||'';}
+  b.update(fdb.collection('reservas').doc(x.reservaId||x.id),r);
+  await b.commit();
+}
+$('list').addEventListener('click',async e=>{
+  const a=e.target.closest('[data-acc]'),r=e.target.closest('[data-rej]'),d=e.target.closest('[data-done]');
+  try{
+    if(a){const x=items.find(i=>i.id===a.dataset.acc);a.disabled=true;await responder(x,'aceptado',{taxi:me.taxi||'',conductor:me.nombre||''});toast('Aceptado. Ya tienes los datos del cliente.');}
+    else if(r){
+      const id=r.dataset.rej;
+      if(rejArmed!==id){rejArmed=id;render();return;}
+      rejArmed=null;await responder(items.find(i=>i.id===id),'rechazado');toast('Rechazado.');
+    }else if(d){
+      const x=items.find(i=>i.id===d.dataset.done);
+      const v=String(($('imp-'+x.id)||{}).value||'').trim().replace(/\s|€/g,'').replace(',','.');
+      const imp=v?Math.round(parseFloat(v)*100)/100:null;
+      if(v&&!(imp>=0)){toast('El importe no es un número válido.');return;}
+      d.disabled=true;await responder(x,'hecho',{importe:imp});toast('Marcado como hecho.');
+    }
+  }catch(err){toast('Error: '+(err.code||err.message));render();}
+});
+})();
+</script>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
+</body>
+</html>
