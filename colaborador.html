@@ -42,6 +42,8 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .b.ok{background:var(--ok);color:#06240F;border-color:transparent}
 .b.bad{color:var(--bad)}
 .imp{display:flex;gap:8px;margin-top:10px}
+.dev{margin-top:10px;border:1px dashed var(--bad);border-radius:8px;padding:10px}
+.dev p{margin:0 0 8px;font-size:.9rem;color:var(--muted)}
 .imp input{flex:1}
 .pill{font-size:.78rem;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
 .pill.hecho{background:rgba(76,195,138,.18);color:var(--ok)}
@@ -79,12 +81,13 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 <script src="firebase-config.js"></script>
 <script>
 (function(){
-if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const fauth=firebase.auth(), fdb=firebase.firestore();
+// Sesión propia de esta app, independiente de las otras apps de MisReservas en el mismo móvil
+const appFb=firebase.apps.find(a=>a.name==='colaborador')||firebase.initializeApp(firebaseConfig,'colaborador');
+const fauth=appFb.auth(), fdb=appFb.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ts=()=>firebase.firestore.FieldValue.serverTimestamp();
-let me=null, items=[], privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null;
+let me=null, items=[], privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
 
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,5000);}
 function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
@@ -159,7 +162,12 @@ function card(x,tipo){
     if(x.estado==='aceptado'){
       const tel=String(p.telefono||'').replace(/[^\d+]/g,'');
       h+='<div class="imp"><input type="text" inputmode="decimal" placeholder="Importe cobrado (€)" id="imp-'+esc(x.id)+'"><button class="b ok" data-done="'+esc(x.id)+'">Hecho</button></div>'+
-        (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'');
+        (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'')+
+        (devArmed===x.id
+          ?'<div class="dev"><p>Se lo devuelves al taxista para que lo haga él o se lo pase a otro. Dejarás de ver los datos del cliente.</p>'+
+            '<input type="text" id="mot-'+esc(x.id)+'" placeholder="Motivo (opcional): avería, retraso…" autocomplete="off">'+
+            '<div class="row"><button class="b bad" data-devok="'+esc(x.id)+'">Confirmar devolución</button><button class="b" data-devno="1">No devolver</button></div></div>'
+          :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
     }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>';
   }else if(x.estado==='cancelado'){
     h+='<div class="row"><span class="pill cancelado">Cancelado por el taxista</span></div>';
@@ -189,10 +197,22 @@ async function responder(x,estado,extra){
   b.update(fdb.collection('cesiones').doc(x.id),c);
   const r={cesion:estado,actualizadoEn:ts()};
   if(estado==='aceptado'){r.estado='confirmada';r.taxi=me.taxi||'';r.conductor=me.nombre||'';}
+  if(estado==='devuelto'){r.taxi='';r.conductor='';}
   b.update(fdb.collection('reservas').doc(x.reservaId||x.id),r);
   await b.commit();
 }
 $('list').addEventListener('click',async e=>{
+  const dv=e.target.closest('[data-dev]'),dok=e.target.closest('[data-devok]'),dno=e.target.closest('[data-devno]');
+  if(dv){devArmed=dv.dataset.dev;render();const m=$('mot-'+devArmed);if(m)m.focus();return;}
+  if(dno){devArmed=null;render();return;}
+  if(dok){
+    const x=items.find(i=>i.id===dok.dataset.devok);if(!x)return;
+    const motivo=String(($('mot-'+x.id)||{}).value||'').trim().slice(0,200);
+    dok.disabled=true;
+    try{await responder(x,'devuelto',{motivo,taxi:'',conductor:''});devArmed=null;delete privado[x.id];toast('Servicio devuelto. El taxista ya lo sabe.');}
+    catch(err){toast('Error: '+(err.code||err.message));render();}
+    return;
+  }
   const a=e.target.closest('[data-acc]'),r=e.target.closest('[data-rej]'),d=e.target.closest('[data-done]');
   try{
     if(a){const x=items.find(i=>i.id===a.dataset.acc);a.disabled=true;await responder(x,'aceptado',{taxi:me.taxi||'',conductor:me.nombre||''});toast('Aceptado. Ya tienes los datos del cliente.');}
