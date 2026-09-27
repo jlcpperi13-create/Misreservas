@@ -1,8 +1,8 @@
 // Service worker de MisReservas
 // Cada vez que subas cambios, sube también este número (v1 -> v2 -> v3...)
-const CACHE = 'misreservas-v4';
+const CACHE = 'misreservas-v6';
 const ARCHIVOS = ['./', './index.html', './admin.html', './firebase-config.js',
-  './manifest.json', './manifest-panel.json',
+  './manifest.json', './manifest-panel.json', './colaborador.html', './manifest-colab.json', './colab-192.png', './colab-512.png',
   './cliente-192.png', './cliente-512.png', './panel-192.png', './panel-512.png'];
 
 self.addEventListener('install', e => {
