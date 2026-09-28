@@ -43,6 +43,9 @@ textarea{min-height:70px;resize:vertical}
 .pill.pendiente{background:rgba(232,163,61,.18);color:var(--amber)}
 .pill.confirmada{background:rgba(76,195,138,.18);color:var(--ok)}
 .pill.cancelada{background:rgba(240,122,110,.18);color:var(--bad)}
+.pill.realizada{background:rgba(143,184,255,.16);color:#8FB8FF}
+.mes{display:flex;justify-content:space-between;color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
+.mes span{text-transform:none;letter-spacing:0;font-weight:400}
 .res .route{margin-top:6px;overflow-wrap:anywhere}
 .res .meta{color:var(--muted);font-size:.88rem;margin-top:4px;overflow-wrap:anywhere}
 .assign{margin-top:10px;border-left:3px solid var(--ok);padding:7px 10px;background:rgba(76,195,138,.08);border-radius:0 6px 6px 0;overflow-wrap:anywhere}
@@ -66,6 +69,7 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
   <div class="tabs">
     <button type="button" id="tabNueva" class="on">Nueva reserva</button>
     <button type="button" id="tabMias">Mis reservas</button>
+    <button type="button" id="tabHist">Realizadas</button>
   </div>
 
   <section id="viewNueva">
@@ -88,6 +92,10 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
 
   <section id="viewMias" hidden>
     <div id="mias"><p class="empty">Cargando…</p></div>
+  </section>
+
+  <section id="viewHist" hidden>
+    <div id="hist"><p class="empty">Cargando…</p></div>
   </section>
 </div>
 
@@ -121,7 +129,7 @@ const fauth=firebase.auth(), fdb=firebase.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
-const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada'};
+const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada',realizada:'Realizada'};
 const counts={pasajeros:1,maletas:0};
 let unsub=null, mine=[], prev={}, firstSnap=true, flashIds=new Set(), cancelArmed=null;
 
@@ -140,12 +148,14 @@ document.querySelectorAll('.counter button').forEach(b=>b.addEventListener('clic
 
 /* ---- pestañas ---- */
 function showTab(t){
-  $('tabNueva').classList.toggle('on',t==='nueva');$('tabMias').classList.toggle('on',t==='mias');
-  $('viewNueva').hidden=t!=='nueva';$('viewMias').hidden=t!=='mias';
+  $('tabNueva').classList.toggle('on',t==='nueva');$('tabMias').classList.toggle('on',t==='mias');$('tabHist').classList.toggle('on',t==='hist');
+  $('viewNueva').hidden=t!=='nueva';$('viewMias').hidden=t!=='mias';$('viewHist').hidden=t!=='hist';
+  if(t==='hist')renderHist();
   if(t==='mias')renderMine();
 }
 $('tabNueva').onclick=()=>showTab('nueva');
 $('tabMias').onclick=()=>showTab('mias');
+$('tabHist').onclick=()=>showTab('hist');
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,6000);}
 
@@ -198,7 +208,8 @@ function detectChanges(){
   changed.forEach(r=>flashIds.add(r.id));
   const r=changed[0];
   let msg;
-  if(r.estado==='confirmada')msg='Confirmada: '+r.horaTexto+' desde '+r.origen+(r.taxi?'. Taxi '+r.taxi:'');
+  if(r.estado==='realizada')msg='Servicio realizado: '+r.horaTexto+' desde '+r.origen;
+  else if(r.estado==='confirmada')msg='Confirmada: '+r.horaTexto+' desde '+r.origen+(r.taxi?'. Taxi '+r.taxi:'');
   else if(r.estado==='cancelada')msg='Cancelada: reserva de las '+r.horaTexto;
   else msg='Tu reserva de las '+r.horaTexto+' ha cambiado';
   toast(msg);
@@ -233,13 +244,34 @@ function renderMine(){
   }
   const now=Date.now()-2*3600000;
   const ms=r=>r.fechaHora&&r.fechaHora.toMillis?r.fechaHora.toMillis():0;
-  const vis=mine.filter(r=>!r.ocultoCliente);
+  const vis=mine.filter(r=>!r.ocultoCliente&&r.estado!=='realizada');
   const prox=vis.filter(r=>ms(r)>=now).sort((a,b)=>ms(a)-ms(b));
   const ant=vis.filter(r=>ms(r)<now).sort((a,b)=>ms(b)-ms(a)).slice(0,20);
   let html='',cur='';
   for(const r of prox){const l=dayLabel(ms(r));if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}html+=card(r,false);}
   if(!prox.length)html+='<p class="empty">No tienes reservas próximas.</p>';
   if(ant.length){html+='<div class="day">Anteriores</div>';for(const r of ant)html+=card(r,true);}
+  el.innerHTML=html;
+  if(!$('viewHist').hidden)renderHist();
+}
+function renderHist(){
+  const el=$('hist');
+  const ms=r=>r.fechaHora&&r.fechaHora.toMillis?r.fechaHora.toMillis():0;
+  const hechas=mine.filter(r=>r.estado==='realizada').sort((a,b)=>ms(b)-ms(a));
+  if(!fauth.currentUser||!hechas.length){el.innerHTML='<p class="empty">Aquí quedarán guardados todos los servicios realizados, ordenados por mes.</p>';return;}
+  const grupos=new Map();
+  for(const r of hechas){const d=new Date(ms(r));const k=d.getFullYear()+'-'+d.getMonth();if(!grupos.has(k))grupos.set(k,{d,items:[]});grupos.get(k).items.push(r);}
+  let html='';
+  for(const g of grupos.values()){
+    const mes=g.d.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+    html+='<div class="mes">'+esc(mes.charAt(0).toUpperCase()+mes.slice(1))+'<span>'+g.items.length+(g.items.length===1?' servicio':' servicios')+'</span></div>';
+    for(const r of g.items){
+      const d=new Date(ms(r));
+      html+='<div class="res old"><div class="top"><span class="when">'+esc(d.toLocaleDateString('es-ES',{day:'numeric',month:'short'}))+' · '+esc(r.horaTexto)+'</span><span class="pill realizada">Realizada</span></div>'+
+        '<div class="route">'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
+        '<div class="meta">'+[r.nombre,r.pasajeros+(r.pasajeros==1?' pasajero':' pasajeros'),r.taxi?'Taxi '+r.taxi:'','Código '+r.codigo].filter(Boolean).map(esc).join(', ')+'</div></div>';
+    }
+  }
   el.innerHTML=html;
 }
 $('mias').addEventListener('click',async e=>{
