@@ -210,6 +210,7 @@ async function responder(x,estado,extra){
   const r={cesion:estado,actualizadoEn:ts()};
   if(estado==='aceptado'){r.estado='confirmada';r.taxi=me.taxi||'';r.conductor=me.nombre||'';}
   if(estado==='devuelto'){r.taxi='';r.conductor='';}
+  if(estado==='hecho'){r.estado='realizada';}
   b.update(fdb.collection('reservas').doc(x.reservaId||x.id),r);
   await b.commit();
 }
