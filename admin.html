@@ -39,14 +39,15 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;ma
 .tag{display:inline-block;font-size:.75rem;font-weight:700;border-radius:5px;padding:1px 7px;margin:4px 6px 0 0;border:1px solid var(--line);color:var(--muted)}
 .tag.taxi{color:var(--ok);border-color:currentColor}
 .dot{width:12px;height:12px;border-radius:50%;margin-top:6px}
-.dot.pendiente{background:var(--amber)}.dot.confirmada{background:var(--ok)}.dot.cancelada{background:var(--bad)}
+.dot.pendiente{background:var(--amber)}.dot.confirmada{background:var(--ok)}.dot.cancelada{background:var(--bad)}.dot.realizada{background:#8FB8FF}
+.row.realizada{opacity:.75}
 .row.cancelada{opacity:.6}
 .empty{color:var(--muted);text-align:center;padding:28px 10px}
 dialog{border:0;border-radius:16px 16px 0 0;background:var(--card);color:var(--ink);padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));width:100%;max-width:640px;max-height:92vh;overflow:auto;margin:auto auto 0}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog h2{margin:0 0 4px;font-size:1.15rem;overflow-wrap:anywhere}
 .status-label{font-weight:700;margin-bottom:10px}
-.status-label.pendiente{color:var(--amber)}.status-label.confirmada{color:var(--ok)}.status-label.cancelada{color:var(--bad)}
+.status-label.pendiente{color:var(--amber)}.status-label.confirmada{color:var(--ok)}.status-label.cancelada{color:var(--bad)}.status-label.realizada{color:#8FB8FF}
 dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 16px}
 dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 .box{border-top:1px solid var(--line);padding-top:14px}
@@ -228,6 +229,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
   <div class="error" id="sError"></div>
   <div class="actions">
     <button class="submit" type="button" id="btnConfirm">Confirmar</button>
+    <button class="btn" type="button" id="btnHecho" hidden style="flex:1 1 100%;color:#8FB8FF;border-color:#8FB8FF">Marcar como realizado</button>
     <button class="btn" type="button" id="btnEditOwn" hidden>Editar servicio</button>
     <a class="btn" id="btnCall" href="#">Llamar</a>
     <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
@@ -251,7 +253,7 @@ const fauth=appFb.auth(), fdb=appFb.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const CESION={ofrecido:'sin responder',aceptado:'aceptado',rechazado:'rechazado',devuelto:'devuelto',hecho:'hecho',cancelado:'cancelado'};
-const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada'};
+const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada',realizada:'Realizada'};
 let colabs=[], cesiones={}, unsubC=null, unsubS=null, retArmed=false, colDelArmed=null;
 let delArmed=false, bulkArmed=false, all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
 
@@ -424,7 +426,7 @@ function claveCliente(r){
 }
 function renderResumen(){
   const ini=new Date(resMes.y,resMes.m,1).getTime(),fin=new Date(resMes.y,resMes.m+1,1).getTime();
-  const del=all.filter(r=>r.estado==='confirmada'&&ms(r)>=ini&&ms(r)<fin);
+  const del=all.filter(r=>(r.estado==='confirmada'||r.estado==='realizada')&&ms(r)>=ini&&ms(r)<fin);
   const map=new Map();let total=0,sinImp=0;
   for(const r of del){
     const c=claveCliente(r);let g=map.get(c.k);
@@ -521,7 +523,8 @@ function openSheet(r){
   $('aTaxi').value=r.taxi||'';$('aConductor').value=r.conductor||'';$('aNota').value=r.notaCliente||'';
   if(r.estado!=='confirmada'&&!r.taxi&&!r.conductor){const t=miTaxi();$('aTaxi').value=t.taxi||'';$('aConductor').value=t.nombre||'';}
   if(r.asignadoA&&r.asignadoA!==yo().uid&&r.estado==='confirmada'){$('sError').textContent='';}
-  $('btnConfirm').textContent=r.estado==='confirmada'?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
+  $('btnHecho').hidden=r.estado!=='confirmada';
+  $('btnConfirm').textContent=(r.estado==='confirmada'||r.estado==='realizada')?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
   $('aImporte').value=typeof r.importe==='number'?String(r.importe).replace('.',','):'';
   setSelect($('aAviso'),r.aviso==null?(miTaxi().aviso==null?30:miTaxi().aviso):r.aviso);
   $('sGcal').textContent=r.gcalId&&gConnected()?'En tu Google Calendar':'';
@@ -529,7 +532,7 @@ function openSheet(r){
   renderCesionBox(r);
   $('btnEditOwn').hidden=r.fuente!=='propio';
   delArmed=false;$('btnDelete').hidden=r.estado!=='cancelada';$('btnDelete').textContent='Eliminar definitivamente';
-  $('btnCancel').hidden=r.estado==='cancelada';$('btnCancel').textContent='Cancelar reserva';
+  $('btnCancel').hidden=r.estado==='cancelada'||r.estado==='realizada';$('btnCancel').textContent='Cancelar reserva';
   const tel=String(r.telefono||'').replace(/[^\d+]/g,'');$('btnCall').hidden=!tel;$('btnCall').href=tel?'tel:'+tel:'#';
   $('sError').textContent='';
   $('sheet').showModal();
@@ -703,6 +706,15 @@ $('colSave').onclick=async()=>{
   }catch(err){$('colErr').textContent='Error: '+(err.code||err.message);}
 };
 
+$('btnHecho').onclick=async()=>{
+  if(!selected)return;
+  const imp=parseImporte($('aImporte').value);
+  if($('aImporte').value.trim()&&imp===null){$('sError').textContent='El importe no es un número válido.';return;}
+  try{
+    await fdb.collection('reservas').doc(selected.id).update({estado:'realizada',...(imp!==null?{importe:imp}:{}),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    $('sheet').close();selected=null;toast('Marcado como realizado. El cliente lo ve en sus Realizadas.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
 $('btnDelete').onclick=async()=>{
   if(!selected||selected.estado!=='cancelada')return;
   if(!delArmed){delArmed=true;$('btnDelete').textContent='Pulsa otra vez para eliminar';return;}
@@ -737,8 +749,8 @@ $('btnConfirm').onclick=async()=>{
   try{
     await fdb.collection('reservas').doc(selected.id).update({
       importe:imp,aviso,...(gcalId?{gcalId}:{}),
-      estado:'confirmada',
-      ...((!selected.asignadoA||selected.estado!=='confirmada')?asignacion():{}),
+      estado:selected.estado==='realizada'?'realizada':'confirmada',
+      ...((!selected.asignadoA||(selected.estado!=='confirmada'&&selected.estado!=='realizada'))?asignacion():{}),
       taxi:$('aTaxi').value.trim(),conductor:$('aConductor').value.trim(),notaCliente:$('aNota').value.trim(),
       actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
     });
