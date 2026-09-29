@@ -259,7 +259,7 @@ function renderMine(){
 function renderHist(){
   const el=$('hist');
   const ms=r=>r.fechaHora&&r.fechaHora.toMillis?r.fechaHora.toMillis():0;
-  const hechas=mine.filter(r=>r.estado==='realizada').sort((a,b)=>ms(b)-ms(a));
+  const hechas=mine.filter(r=>r.estado==='realizada'&&!r.ocultoCliente).sort((a,b)=>ms(b)-ms(a));
   if(!fauth.currentUser||!hechas.length){el.innerHTML='<p class="empty">Aquí quedarán guardados todos los servicios realizados, ordenados por mes.</p>';return;}
   const grupos=new Map();
   for(const r of hechas){const d=new Date(ms(r));const k=d.getFullYear()+'-'+d.getMonth();if(!grupos.has(k))grupos.set(k,{d,items:[]});grupos.get(k).items.push(r);}
@@ -271,11 +271,17 @@ function renderHist(){
       const d=new Date(ms(r));
       html+='<div class="res old"><div class="top"><span class="when">'+esc(d.toLocaleDateString('es-ES',{day:'numeric',month:'short'}))+' · '+esc(r.horaTexto)+'</span><span class="pill realizada">Realizada</span></div>'+
         '<div class="route">'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
-        '<div class="meta">'+[r.nombre,r.pasajeros+(r.pasajeros==1?' pasajero':' pasajeros'),r.taxi?'Taxi '+r.taxi:'','Código '+r.codigo].filter(Boolean).map(esc).join(', ')+'</div></div>';
+        '<div class="meta">'+[r.nombre,r.pasajeros+(r.pasajeros==1?' pasajero':' pasajeros'),r.taxi?'Taxi '+r.taxi:'','Código '+r.codigo].filter(Boolean).map(esc).join(', ')+'</div>'+
+        '<button type="button" class="cancel" data-hide="'+esc(r.id)+'" style="color:var(--muted)">Quitar de la lista</button></div>';
     }
   }
   el.innerHTML=html;
 }
+$('hist').addEventListener('click',async e=>{
+  const h=e.target.closest('[data-hide]');if(!h)return;
+  try{await fdb.collection('reservas').doc(h.dataset.hide).update({ocultoCliente:true});toast('Quitada de la lista.');}
+  catch(err){toast('No se pudo quitar ('+(err.code||err.message)+').');}
+});
 $('mias').addEventListener('click',async e=>{
   const h=e.target.closest('[data-hide]');
   if(h){

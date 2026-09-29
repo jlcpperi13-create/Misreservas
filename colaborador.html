@@ -214,7 +214,7 @@ function card(x,tipo){
             '<input type="text" id="mot-'+esc(x.id)+'" placeholder="Motivo (opcional): avería, retraso…" autocomplete="off">'+
             '<div class="row"><button class="b bad" data-devok="'+esc(x.id)+'">Confirmar devolución</button><button class="b" data-devno="1">No devolver</button></div></div>'
           :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
-    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>';
+    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='cancelado'){
     h+='<div class="row"><span class="pill cancelado">Cancelado por el taxista</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='rechazado'){
@@ -227,7 +227,7 @@ function render(){
   const nuevos=items.filter(x=>x.estado==='ofrecido').sort((a,b)=>ms(a)-ms(b));
   const acept=items.filter(x=>x.estado==='aceptado').sort((a,b)=>ms(a)-ms(b));
   const avisos=items.filter(x=>x.estado==='cancelado'&&!x.ocultoColab&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
-  const hechos=items.filter(x=>x.estado==='hecho').sort((a,b)=>ms(b)-ms(a)).slice(0,15);
+  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).sort((a,b)=>ms(b)-ms(a)).slice(0,15);
   let h='';
   if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
   if(acept.length)h+='<div class="sec">Aceptados</div>'+acept.map(x=>card(x,'')).join('');

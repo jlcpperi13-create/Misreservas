@@ -237,6 +237,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <a class="btn" id="btnCall" href="#">Llamar</a>
     <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
     <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
+    <button class="btn" type="button" id="btnOcultar" hidden>Quitar de mi lista</button>
     <button class="btn bad" type="button" id="btnDelete" hidden>Eliminar definitivamente</button>
     <button class="btn" type="button" id="btnClose">Cerrar</button>
   </div>
@@ -259,7 +260,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const CESION={ofrecido:'sin responder',aceptado:'aceptado',rechazado:'rechazado',devuelto:'devuelto',hecho:'hecho',cancelado:'cancelado'};
 const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada',realizada:'Realizada'};
 let colabs=[], cesiones={}, unsubC=null, unsubS=null, retArmed=false, colDelArmed=null;
-let delArmed=false, bulkArmed=false, all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
+let verOcultos=false, delArmed=false, bulkArmed=false, all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,7000);}
 function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
@@ -502,10 +503,11 @@ function render(){
   if(filter==='resumen'){renderResumen();return;}
   const now=Date.now(), s=new Date();s.setHours(0,0,0,0);const e=new Date(s.getTime()+86400000);
   let items=all;
-  if(filter==='hoy')items=all.filter(r=>ms(r)>=s.getTime()&&ms(r)<e.getTime()&&r.estado!=='cancelada');
-  else if(filter==='proximas')items=all.filter(r=>ms(r)>=now-3600000&&r.estado!=='cancelada');
-  else if(filter==='mios')items=all.filter(r=>r.asignadoA===yo().uid&&ms(r)>=now-3600000&&r.estado!=='cancelada');
-  else{items=all.slice().sort((a,b)=>ms(b)-ms(a));
+  const vis=all.filter(r=>!r.ocultoAdmin);
+  if(filter==='hoy')items=vis.filter(r=>ms(r)>=s.getTime()&&ms(r)<e.getTime()&&r.estado!=='cancelada');
+  else if(filter==='proximas')items=vis.filter(r=>ms(r)>=now-3600000&&r.estado!=='cancelada');
+  else if(filter==='mios')items=vis.filter(r=>r.asignadoA===yo().uid&&ms(r)>=now-3600000&&r.estado!=='cancelada');
+  else{items=(verOcultos?all.filter(r=>r.ocultoAdmin):vis).slice().sort((a,b)=>ms(b)-ms(a));
     const q=$('search').value.trim().toLowerCase(),qd=q.replace(/\D/g,'');
     if(q)items=items.filter(r=>{const txt=[r.nombre,r.clienteCuenta,r.origen,r.destino,r.codigo,r.notas].join(' ').toLowerCase();
       const tel=String(r.telefono||'').replace(/\D/g,'');return txt.includes(q)||(qd.length>=3&&tel.includes(qd));});}
@@ -513,9 +515,11 @@ function render(){
   $('tabMios').hidden=!hayOtros;
   const pend=all.filter(r=>r.estado==='pendiente'&&ms(r)>=now-3600000).length;
   $('summary').innerHTML=pend?'<b>'+pend+' pendiente'+(pend===1?'':'s')+'</b>':items.length+' reserva'+(items.length===1?'':'s');
-  if(!items.length){$('list').innerHTML='<p class="empty">No hay reservas en este rango.</p>';return;}
-  let html='',cur='';
-  if(filter==='todas'&&!$('search').value.trim()){
+  const nOcultos=all.filter(r=>r.ocultoAdmin).length;
+  const btnOcultos=(filter==='todas'&&nOcultos)?'<button type="button" class="bulk" id="toggleOcultos" style="color:var(--muted)">'+(verOcultos?'Volver a la lista normal':'Ver servicios quitados de la lista ('+nOcultos+')')+'</button>':'';
+  if(!items.length){$('list').innerHTML=btnOcultos+'<p class="empty">No hay reservas en este rango.</p>';return;}
+  let html=btnOcultos,cur='';
+  if(filter==='todas'&&!verOcultos&&!$('search').value.trim()){
     const nc=all.filter(r=>r.estado==='cancelada').length;
     if(nc)html+='<button type="button" class="bulk" id="bulkDel">'+(bulkArmed?'Pulsa otra vez para eliminar las '+nc+' canceladas':'Eliminar las '+nc+' reservas canceladas')+'</button>';
   }
@@ -564,7 +568,8 @@ function openSheet(r){
   $('btnGcal').hidden=gConnected()||r.estado==='cancelada';$('btnGcal').href=gcalLink(r);
   renderCesionBox(r);
   $('btnEditOwn').hidden=r.fuente!=='propio';
-  delArmed=false;$('btnDelete').hidden=r.estado!=='cancelada';$('btnDelete').textContent='Eliminar definitivamente';
+  delArmed=false;$('btnDelete').hidden=false;
+  $('btnOcultar').hidden=!(r.estado==='cancelada'||r.estado==='realizada');$('btnOcultar').textContent=r.ocultoAdmin?'Volver a mostrar en mi lista':'Quitar de mi lista';$('btnDelete').textContent='Eliminar definitivamente';
   $('btnCancel').hidden=r.estado==='cancelada'||r.estado==='realizada';$('btnCancel').textContent='Cancelar reserva';
   const tel=String(r.telefono||'').replace(/[^\d+]/g,'');$('btnCall').hidden=!tel;$('btnCall').href=tel?'tel:'+tel:'#';
   $('sError').textContent='';
@@ -749,9 +754,29 @@ $('btnHecho').onclick=async()=>{
     $('sheet').close();selected=null;toast('Marcado como realizado. El cliente lo ve en sus Realizadas.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
 };
+$('btnOcultar').onclick=async()=>{
+  if(!selected)return;
+  const ocultar=!selected.ocultoAdmin;
+  try{
+    await fdb.collection('reservas').doc(selected.id).update({ocultoAdmin:ocultar});
+    $('sheet').close();selected=null;
+    toast(ocultar?'Quitado de tu lista. Sigue contando en el Resumen.':'Vuelve a estar en tu lista.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
+$('list').addEventListener('click',e=>{if(e.target.closest('#toggleOcultos')){verOcultos=!verOcultos;render();}});
 $('btnDelete').onclick=async()=>{
-  if(!selected||selected.estado!=='cancelada')return;
-  if(!delArmed){delArmed=true;$('btnDelete').textContent='Pulsa otra vez para eliminar';return;}
+  if(!selected)return;
+  if(!delArmed){
+    delArmed=true;
+    const e=selected.estado;
+    $('btnDelete').textContent='Pulsa otra vez para eliminar';
+    $('sError').textContent=
+      e==='realizada'?'Se borrará también del historial del cliente y dejará de contar en el Resumen.':
+      e==='cancelada'?'':
+      (selected.clienteUid&&selected.fuente!=='propio')?'Al cliente le desaparecerá sin aviso. Si es un servicio que no se va a hacer, mejor Cancelar primero.':
+      selected.colaboradorUid?'Se quitará también al colaborador.':'';
+    return;
+  }
   try{
     const b=fdb.batch();await quitarCesion(selected,b);b.delete(fdb.collection('reservas').doc(selected.id));await b.commit();
     $('sheet').close();selected=null;toast('Reserva eliminada.');
