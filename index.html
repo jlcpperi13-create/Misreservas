@@ -133,6 +133,8 @@ const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada
 const counts={pasajeros:1,maletas:0};
 let unsub=null, mine=[], prev={}, firstSnap=true, flashIds=new Set(), cancelArmed=null;
 
+const AVISOS_URL='https://avisar-552584306003.europe-west1.run.app';
+function avisar(tipo,id){try{fetch(AVISOS_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,id}),keepalive:true}).catch(()=>{});}catch(e){}}
 /* ---- valores iniciales ---- */
 (function initForm(){
   const d=new Date(Date.now()+60*60000); d.setMinutes(0,0,0);
@@ -285,7 +287,7 @@ $('mias').addEventListener('click',async e=>{
   const id=b.dataset.id;
   if(cancelArmed!==id){cancelArmed=id;renderMine();return;}
   cancelArmed=null;
-  try{await fdb.collection('reservas').doc(id).update({estado:'cancelada'});toast('Reserva cancelada.');}
+  try{await fdb.collection('reservas').doc(id).update({estado:'cancelada'});avisar('cancelada',id);toast('Reserva cancelada.');}
   catch(err){toast('No se pudo cancelar ('+(err.code||err.message)+').');renderMine();}
 });
 
@@ -311,7 +313,8 @@ $('bookingForm').addEventListener('submit',async e=>{
       estado:'pendiente',creadoEn:firebase.firestore.FieldValue.serverTimestamp()};
     if(notas)data.notas=notas;
     if(u){data.clienteUid=u.uid;if(!u.isAnonymous&&u.email)data.clienteCuenta=u.email;}
-    await fdb.collection('reservas').add(data);
+    const nuevaRef=await fdb.collection('reservas').add(data);
+    avisar('nueva',nuevaRef.id);
     try{localStorage.setItem('mr-cliente',JSON.stringify({nombre,telefono}));}catch(e){}
     $('origen').value='';$('destino').value='';$('notas').value='';
     counts.pasajeros=1;counts.maletas=0;$('pasajerosCount').textContent='1';$('maletasCount').textContent='0';

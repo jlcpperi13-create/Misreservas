@@ -41,6 +41,8 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .b.pri{background:var(--acc);color:var(--acc-ink);border-color:transparent}
 .b.ok{background:var(--ok);color:#06240F;border-color:transparent}
 .b.bad{color:var(--bad)}
+.pushbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(111,160,245,.12);border:1px solid rgba(111,160,245,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
+.pushbar button{flex:none;border:0;background:var(--acc);color:var(--acc-ink);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}
 .imp{display:flex;gap:8px;margin-top:10px}
 .dev{margin-top:10px;border:1px dashed var(--bad);border-radius:8px;padding:10px}
 .dev p{margin:0 0 8px;font-size:.9rem;color:var(--muted)}
@@ -71,6 +73,7 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
     <button class="out" id="outBtn" type="button">Salir</button>
   </header>
   <div class="me" id="me"></div>
+  <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte cuando te pasen un servicio, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
   <div id="list"><p class="empty">Cargando…</p></div>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
@@ -78,6 +81,7 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
 (function(){
@@ -94,6 +98,34 @@ function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||windo
 document.addEventListener('pointerdown',unlockAudio,{passive:true});
 function beep(){if(!audioCtx)return;try{const t0=audioCtx.currentTime;[880,1175,880].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=f;const s=t0+i*0.22;g.gain.setValueAtTime(0.0001,s);g.gain.exponentialRampToValueAtTime(0.3,s+0.02);g.gain.exponentialRampToValueAtTime(0.0001,s+0.2);o.connect(g).connect(audioCtx.destination);o.start(s);o.stop(s+0.22);});}catch(e){}}
 
+const AVISOS_URL='https://avisar-552584306003.europe-west1.run.app';
+function avisar(tipo,id){try{fetch(AVISOS_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,id}),keepalive:true}).catch(()=>{});}catch(e){}}
+
+/* ---- avisos push en este móvil ---- */
+const VAPID='BKTiB-gWr0wzs5WBioaWW8-KiYss6BKTxK7kCh875JQAAOZeG-qKActPtHfZFvgIOMQF8EgzZUYaa7R-FWD-4oU';
+const pushKey=()=>'mr-push-'+(fauth.currentUser?fauth.currentUser.uid:'');
+function pushSoportado(){try{return 'Notification' in window&&'serviceWorker' in navigator&&'PushManager' in window&&firebase.messaging.isSupported();}catch(e){return false;}}
+function pintarPushBar(){
+  const bar=$('pushBar');if(!bar)return;
+  let on=false;try{on=localStorage.getItem(pushKey())==='1'&&Notification.permission==='granted';}catch(e){}
+  bar.hidden=on||!pushSoportado();
+}
+async function activarAvisos(interactivo){
+  if(!fauth.currentUser)return false;
+  if(!pushSoportado()){if(interactivo)toast('Este navegador no admite avisos. Prueba con Chrome, Edge o Samsung Internet.');return false;}
+  try{
+    if(interactivo){const p=await Notification.requestPermission();if(p!=='granted'){toast('Sin permiso de avisos. Actívalo en los ajustes de notificaciones del móvil.');return false;}}
+    else if(Notification.permission!=='granted')return false;
+    const reg=await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready;
+    const tok=await appFb.messaging().getToken({vapidKey:VAPID,serviceWorkerRegistration:reg});
+    if(!tok)throw new Error('sin token');
+    await fdb.collection('tokens').doc(tok).set({uid:fauth.currentUser.uid,app:'colaborador',dispositivo:navigator.userAgent.slice(0,120),actualizado:firebase.firestore.FieldValue.serverTimestamp()});
+    try{localStorage.setItem(pushKey(),'1');}catch(e){}
+    pintarPushBar();
+    if(interactivo)toast('Avisos activados en este móvil.');
+    return true;
+  }catch(e){console.warn(e);if(interactivo)toast('No se pudieron activar los avisos ('+(e.code||e.message)+').');return false;}
+}
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(async u=>{
   if(unsub){unsub();unsub=null;}
@@ -109,6 +141,7 @@ fauth.onAuthStateChanged(async u=>{
   }
   $('loginView').hidden=true;$('appView').hidden=false;
   $('me').textContent=(me.nombre||'')+(me.taxi?' · Taxi '+me.taxi:'');
+  pintarPushBar();activarAvisos(false);
   known=null;
   unsub=fdb.collection('cesiones').where('colaboradorUid','==',u.uid).onSnapshot({includeMetadataChanges:true},s=>{
     items=s.docs.map(d=>({id:d.id,...d.data(),_pend:d.metadata.hasPendingWrites}));
@@ -132,6 +165,7 @@ $('lBtn').onclick=async()=>{
   finally{$('lBtn').disabled=false;}
 };
 $('outBtn').onclick=()=>fauth.signOut();
+$('pushBtn').onclick=()=>activarAvisos(true);
 
 /* ---- datos del cliente (solo tras aceptar) ---- */
 const intentos={};
@@ -213,6 +247,7 @@ async function responder(x,estado,extra){
   if(estado==='hecho'){r.estado='realizada';}
   b.update(fdb.collection('reservas').doc(x.reservaId||x.id),r);
   await b.commit();
+  avisar('cesion',x.reservaId||x.id);
 }
 $('list').addEventListener('click',async e=>{
   const hd=e.target.closest('[data-hide]');

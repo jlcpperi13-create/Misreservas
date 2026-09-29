@@ -87,6 +87,8 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
 .clist .it small{display:block;color:var(--muted)}
 .mini{background:none;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:.85rem;cursor:pointer}
 .sec{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
+.pushbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
+.pushbar button{flex:none;border:0;background:var(--amber,#E8A33D);color:#231600;border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}
 .tag.own{color:var(--amber);border-color:currentColor}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--amber);color:var(--amber-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
@@ -109,6 +111,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <div class="brand">Mis<span>Reservas</span></div>
     <div class="hdr-r"><span class="summary" id="summary"></span><button class="out" id="meBtn" type="button">Mi taxi</button><button class="out" id="outBtn" type="button">Salir</button></div>
   </header>
+  <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte de las reservas con la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
   <div class="tabs">
     <button type="button" data-f="hoy" class="on">Hoy</button>
     <button type="button" data-f="proximas">Próximas</button>
@@ -244,6 +247,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
 (function(){
@@ -324,6 +328,34 @@ function parseImporte(v){v=String(v||'').trim().replace(/\s|€/g,'').replace(',
 const eur=n=>(Math.round((n||0)*100)/100).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 function setSelect(el,v){const val=String(v);el.value=[...el.options].some(o=>o.value===val)?val:'30';}
 
+const AVISOS_URL='https://avisar-552584306003.europe-west1.run.app';
+function avisar(tipo,id){try{fetch(AVISOS_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,id}),keepalive:true}).catch(()=>{});}catch(e){}}
+
+/* ---- avisos push en este móvil ---- */
+const VAPID='BKTiB-gWr0wzs5WBioaWW8-KiYss6BKTxK7kCh875JQAAOZeG-qKActPtHfZFvgIOMQF8EgzZUYaa7R-FWD-4oU';
+const pushKey=()=>'mr-push-'+(fauth.currentUser?fauth.currentUser.uid:'');
+function pushSoportado(){try{return 'Notification' in window&&'serviceWorker' in navigator&&'PushManager' in window&&firebase.messaging.isSupported();}catch(e){return false;}}
+function pintarPushBar(){
+  const bar=$('pushBar');if(!bar)return;
+  let on=false;try{on=localStorage.getItem(pushKey())==='1'&&Notification.permission==='granted';}catch(e){}
+  bar.hidden=on||!pushSoportado();
+}
+async function activarAvisos(interactivo){
+  if(!fauth.currentUser)return false;
+  if(!pushSoportado()){if(interactivo)toast('Este navegador no admite avisos. Prueba con Chrome, Edge o Samsung Internet.');return false;}
+  try{
+    if(interactivo){const p=await Notification.requestPermission();if(p!=='granted'){toast('Sin permiso de avisos. Actívalo en los ajustes de notificaciones del móvil.');return false;}}
+    else if(Notification.permission!=='granted')return false;
+    const reg=await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready;
+    const tok=await appFb.messaging().getToken({vapidKey:VAPID,serviceWorkerRegistration:reg});
+    if(!tok)throw new Error('sin token');
+    await fdb.collection('tokens').doc(tok).set({uid:fauth.currentUser.uid,app:'panel',dispositivo:navigator.userAgent.slice(0,120),actualizado:firebase.firestore.FieldValue.serverTimestamp()});
+    try{localStorage.setItem(pushKey(),'1');}catch(e){}
+    pintarPushBar();
+    if(interactivo)toast('Avisos activados en este móvil.');
+    return true;
+  }catch(e){console.warn(e);if(interactivo)toast('No se pudieron activar los avisos ('+(e.code||e.message)+').');return false;}
+}
 /* ---- quién soy y mi taxi ---- */
 const yo=()=>fauth.currentUser;
 function miTaxi(){try{return JSON.parse(localStorage.getItem('mr-mitaxi-'+(yo()?yo().uid:''))||'{}')}catch(e){return {}}}
@@ -352,7 +384,7 @@ function asignacion(){const u=yo();return u?{asignadoA:u.uid,asignadoEmail:u.ema
 
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(u=>{
-  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();}
+  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();pintarPushBar();activarAvisos(false);}
   else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}known=null;}
 });
 $('loginBtn').onclick=async()=>{
@@ -366,6 +398,7 @@ $('loginBtn').onclick=async()=>{
   finally{$('loginBtn').disabled=false;}
 };
 $('outBtn').onclick=()=>fauth.signOut();
+$('pushBtn').onclick=()=>activarAvisos(true);
 
 /* ---- reservas en directo ---- */
 function subscribeExtra(){
@@ -638,6 +671,7 @@ $('cSend').onclick=async()=>{
     b.set(ref.collection('privado').doc('cliente'),{nombre:r.nombre||'',telefono:r.telefono||'',notas:r.notas||''});
     b.update(fdb.collection('reservas').doc(r.id),{colaboradorUid:uid,colaboradorNombre:c.nombre||'',cesion:'ofrecido',actualizadoEn:ts});
     await b.commit();
+    avisar('ofrecido',r.id);
     selected={...r,colaboradorUid:uid,colaboradorNombre:c.nombre||'',cesion:'ofrecido'};
     renderCesionBox(selected);
     toast('Pasado a '+(c.nombre||'colaborador')+'.'+(waLink(c,r)?' Pulsa «Avisar por WhatsApp» para avisarle.':''));
