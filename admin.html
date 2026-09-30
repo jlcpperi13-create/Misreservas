@@ -89,6 +89,9 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
 .sec{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
 .pushbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
 .pushbar button{flex:none;border:0;background:var(--amber,#E8A33D);color:#231600;border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}
+.segbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(76,195,138,.12);border:1px solid rgba(76,195,138,.45);color:#9FE3C1;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
+.segbar button{flex:none;border:1px solid currentColor;background:none;color:inherit;border-radius:8px;padding:7px 11px;font:inherit;font-weight:700;cursor:pointer}
+.tag.camino{color:#9FE3C1;border-color:currentColor}
 .tag.own{color:var(--amber);border-color:currentColor}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--amber);color:var(--amber-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
@@ -111,6 +114,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <div class="brand">Mis<span>Reservas</span></div>
     <div class="hdr-r"><span class="summary" id="summary"></span><button class="out" id="meBtn" type="button">Mi taxi</button><button class="out" id="outBtn" type="button">Salir</button></div>
   </header>
+  <div class="segbar" id="segBar" hidden><span id="segTxt"></span><button type="button" id="segStop">Parar</button></div>
   <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte de las reservas con la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
   <div class="tabs">
     <button type="button" data-f="hoy" class="on">Hoy</button>
@@ -234,6 +238,10 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <button class="submit" type="button" id="btnConfirm">Confirmar</button>
     <button class="btn" type="button" id="btnHecho" hidden style="flex:1 1 100%;color:#8FB8FF;border-color:#8FB8FF">Marcar como realizado</button>
     <button class="btn" type="button" id="btnEditOwn" hidden>Editar servicio</button>
+    <button class="btn" type="button" id="btnCamino" hidden style="flex:1 1 100%;color:#9FE3C1;border-color:#9FE3C1">📍 En camino</button>
+    <a class="btn" id="btnIr" href="#" target="_blank" rel="noopener">Ir a la recogida</a>
+    <a class="btn" id="btnRuta" href="#" target="_blank" rel="noopener">Ver recorrido</a>
+    <a class="btn" id="btnVerColab" href="#" target="_blank" rel="noopener" hidden style="flex:1 1 100%">📍 Ver dónde va el colaborador</a>
     <a class="btn" id="btnCall" href="#">Llamar</a>
     <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
     <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
@@ -357,6 +365,81 @@ async function activarAvisos(interactivo){
     return true;
   }catch(e){console.warn(e);if(interactivo)toast('No se pudieron activar los avisos ('+(e.code||e.message)+').');return false;}
 }
+
+/* ---- seguimiento "En camino": comparte la ubicación con el cliente ---- */
+const SEG_KEY='mr-seg-panel';
+let seg=null;
+function haversine(a,b){const R=6371,t=x=>x*Math.PI/180;const dLa=t(b.lat-a.lat),dLo=t(b.lng-a.lng);const h=Math.sin(dLa/2)**2+Math.cos(t(a.lat))*Math.cos(t(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+async function geocodificar(texto,cerca){
+  if(!texto)return null;
+  try{
+    let url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=es&q='+encodeURIComponent(texto);
+    if(cerca)url+='&viewbox='+(cerca.lng-0.4)+','+(cerca.lat+0.4)+','+(cerca.lng+0.4)+','+(cerca.lat-0.4);
+    const r=await fetch(url,{headers:{'Accept-Language':'es'}});const j=await r.json();
+    if(j&&j[0])return {lat:+j[0].lat,lng:+j[0].lon};
+  }catch(e){}
+  return null;
+}
+const mapsIr=d=>'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(d||'');
+const mapsRuta=(o,d)=>'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+encodeURIComponent(o||'')+'&destination='+encodeURIComponent(d||'');
+function empezarSeg(info){
+  if(!('geolocation' in navigator)){toast('Este móvil no permite compartir la ubicación.');return;}
+  if(seg)pararSeg(true);
+  seg={...info,inicio:Date.now(),recogida:null,geo:false,watch:null,lock:null,last:0,lastPos:null};
+  try{localStorage.setItem(SEG_KEY,JSON.stringify({...info,inicio:seg.inicio}));}catch(e){}
+  arrancarWatch();pintarSegBar();
+  toast('En camino: el cliente ya puede ver dónde estás.');
+}
+function arrancarWatch(){
+  if(!seg)return;
+  if(seg.watch!=null)navigator.geolocation.clearWatch(seg.watch);
+  seg.last=0;
+  seg.watch=navigator.geolocation.watchPosition(p=>enviarPos(p),err=>{if(err.code===1){toast('Sin permiso de ubicación: actívalo para el navegador.');pararSeg();}},{enableHighAccuracy:true,maximumAge:5000,timeout:30000});
+  if('wakeLock' in navigator&&!seg.lock){navigator.wakeLock.request('screen').then(l=>{if(seg){seg.lock=l;l.addEventListener('release',()=>{if(seg)seg.lock=null;});}else l.release();}).catch(()=>{});}
+}
+async function enviarPos(p){
+  if(!seg)return;
+  if(Date.now()-seg.inicio>2*3600000){pararSeg();return;}
+  const pos={lat:p.coords.latitude,lng:p.coords.longitude};
+  const movido=seg.lastPos?haversine(seg.lastPos,pos)*1000:1e9;
+  if(Date.now()-seg.last<10000&&movido<50)return;
+  seg.last=Date.now();seg.lastPos=pos;
+  if(!seg.geo){seg.geo=true;seg.recogida=await geocodificar(seg.origen,pos);if(!seg)return;}
+  let distKm=null,etaMin=null;
+  if(seg.recogida){distKm=Math.round(haversine(pos,seg.recogida)*10)/10;etaMin=Math.max(1,Math.round(distKm*2.7));}
+  try{
+    await fdb.collection('ubicaciones').doc(seg.id).set({uid:fauth.currentUser.uid,clienteUid:seg.clienteUid||'',quien:'admin',
+      taxi:seg.taxi||'',conductor:seg.conductor||'',lat:pos.lat,lng:pos.lng,precision:Math.round(p.coords.accuracy||0),
+      recogida:seg.recogida||null,distKm,etaMin,etaTs:etaMin!=null?Date.now()+etaMin*60000:null,
+      activo:true,inicio:seg.inicio,ts:firebase.firestore.FieldValue.serverTimestamp()});
+  }catch(e){console.warn('ubicación',e);}
+}
+function pararSeg(silencioso){
+  if(!seg){try{localStorage.removeItem(SEG_KEY);}catch(e){}pintarSegBar();return;}
+  const id=seg.id;
+  if(seg.watch!=null)navigator.geolocation.clearWatch(seg.watch);
+  if(seg.lock)seg.lock.release().catch(()=>{});
+  seg=null;try{localStorage.removeItem(SEG_KEY);}catch(e){}
+  if(!silencioso){fdb.collection('ubicaciones').doc(id).set({activo:false,fin:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});toast('Has dejado de compartir tu ubicación.');}
+  pintarSegBar();
+}
+function reanudarSeg(){
+  if(seg)return;
+  let s=null;try{s=JSON.parse(localStorage.getItem(SEG_KEY)||'null');}catch(e){}
+  if(!s)return;
+  if(Date.now()-s.inicio>2*3600000){try{localStorage.removeItem(SEG_KEY);}catch(e){}return;}
+  seg={...s,recogida:null,geo:false,watch:null,lock:null,last:0,lastPos:null};
+  arrancarWatch();pintarSegBar();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&seg)arrancarWatch();});
+function pintarSegBar(){
+  const b=$('segBar');if(!b)return;
+  b.hidden=!seg;
+  if(seg)$('segTxt').textContent='Compartiendo tu ubicación · servicio de las '+(seg.hora||'')+'. Deja esta app abierta.';
+  if(typeof render==='function')render();
+}
+let ubic={}, unsubU=null;
+const ubicActiva=id=>{const u=ubic[id];if(!u||!u.activo||!u.ts||!u.ts.toMillis)return null;return Date.now()-u.ts.toMillis()<2*3600000?u:null;};
 /* ---- quién soy y mi taxi ---- */
 const yo=()=>fauth.currentUser;
 function miTaxi(){try{return JSON.parse(localStorage.getItem('mr-mitaxi-'+(yo()?yo().uid:''))||'{}')}catch(e){return {}}}
@@ -385,8 +468,8 @@ function asignacion(){const u=yo();return u?{asignadoA:u.uid,asignadoEmail:u.ema
 
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(u=>{
-  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();pintarPushBar();activarAvisos(false);}
-  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}known=null;}
+  if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();pintarPushBar();activarAvisos(false);reanudarSeg();}
+  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}if(unsubU){unsubU();unsubU=null;}known=null;}
 });
 $('loginBtn').onclick=async()=>{
   unlockAudio();
@@ -403,6 +486,8 @@ $('pushBtn').onclick=()=>activarAvisos(true);
 
 /* ---- reservas en directo ---- */
 function subscribeExtra(){
+  if(unsubU)unsubU();
+  unsubU=fdb.collection('ubicaciones').onSnapshot(s=>{const n={};s.docs.forEach(d=>{n[d.id]=d.data();});const cambio=Object.keys(n).some(k=>!!(n[k].activo)!==!!(ubic[k]&&ubic[k].activo))||Object.keys(ubic).length!==Object.keys(n).length;ubic=n;if(cambio)render();if(selected&&$('sheet').open)pintarBotonesMapa(selected);},()=>{});
   if(unsubC)unsubC();
   unsubC=fdb.collection('colaboradores').onSnapshot(s=>{
     colabs=s.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'','es'));
@@ -529,6 +614,7 @@ function render(){
       '<span class="t">'+esc(r.horaTexto)+'</span>'+
       '<span class="r"><div>'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
       '<div class="m">'+[r.nombre,r.pasajeros+' pax',r.maletas?r.maletas+' mal.':''].filter(Boolean).map(esc).join(', ')+'</div>'+
+      (ubicActiva(r.id)?'<span class="tag camino">📍 en camino</span>':'')+
       (r.fuente==='propio'?'<span class="tag own">Propio</span>':'')+
       (typeof r.importe==='number'?'<span class="tag">'+esc(eur(r.importe))+'</span>':'')+
       (r.clienteCuenta?'<span class="tag">'+esc(r.clienteCuenta)+'</span>':'')+
@@ -561,6 +647,7 @@ function openSheet(r){
   if(r.estado!=='confirmada'&&!r.taxi&&!r.conductor){const t=miTaxi();$('aTaxi').value=t.taxi||'';$('aConductor').value=t.nombre||'';}
   if(r.asignadoA&&r.asignadoA!==yo().uid&&r.estado==='confirmada'){$('sError').textContent='';}
   $('btnHecho').hidden=r.estado!=='confirmada';
+  pintarBotonesMapa(r);
   $('btnConfirm').textContent=(r.estado==='confirmada'||r.estado==='realizada')?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
   $('aImporte').value=typeof r.importe==='number'?String(r.importe).replace('.',','):'';
   setSelect($('aAviso'),r.aviso==null?(miTaxi().aviso==null?30:miTaxi().aviso):r.aviso);
@@ -673,7 +760,7 @@ $('cSend').onclick=async()=>{
       fechaHora:r.fechaHora,fechaTexto:r.fechaTexto||'',horaTexto:r.horaTexto||'',origen:r.origen||'',destino:r.destino||'',
       pasajeros:r.pasajeros||1,maletas:r.maletas||0,comisionTipo:c.comisionTipo||'ninguna',comisionValor:+c.comisionValor||0,
       importe:null,taxi:'',conductor:'',creadoEn:ts});
-    b.set(ref.collection('privado').doc('cliente'),{nombre:r.nombre||'',telefono:r.telefono||'',notas:r.notas||''});
+    b.set(ref.collection('privado').doc('cliente'),{nombre:r.nombre||'',telefono:r.telefono||'',notas:r.notas||'',clienteUid:r.clienteUid||''});
     b.update(fdb.collection('reservas').doc(r.id),{colaboradorUid:uid,colaboradorNombre:c.nombre||'',cesion:'ofrecido',actualizadoEn:ts});
     await b.commit();
     avisar('ofrecido',r.id);
@@ -745,8 +832,26 @@ $('colSave').onclick=async()=>{
   }catch(err){$('colErr').textContent='Error: '+(err.code||err.message);}
 };
 
+function pintarBotonesMapa(r){
+  $('btnIr').href=mapsIr(r.origen);$('btnRuta').href=mapsRuta(r.origen,r.destino);
+  const cedidoActivo=r.colaboradorUid&&(r.cesion==='ofrecido'||r.cesion==='aceptado'||r.cesion==='hecho');
+  const puedeCamino=r.estado==='confirmada'&&!cedidoActivo;
+  $('btnCamino').hidden=!puedeCamino;
+  $('btnCamino').textContent=(seg&&seg.id===r.id)?'⏹ Dejar de compartir mi ubicación':'📍 En camino (compartir mi ubicación)';
+  const u=r.colaboradorUid?ubicActiva(r.id):null;
+  $('btnVerColab').hidden=!u;if(u)$('btnVerColab').href='https://www.google.com/maps/search/?api=1&query='+u.lat+','+u.lng;
+}
+$('btnCamino').onclick=()=>{
+  if(!selected)return;
+  if(seg&&seg.id===selected.id){pararSeg();pintarBotonesMapa(selected);return;}
+  const t=miTaxi();
+  empezarSeg({id:selected.id,clienteUid:selected.clienteUid||'',taxi:$('aTaxi').value.trim()||t.taxi||'',conductor:$('aConductor').value.trim()||t.nombre||'',origen:selected.origen||'',hora:selected.horaTexto||''});
+  pintarBotonesMapa(selected);
+};
+$('segStop').onclick=()=>pararSeg();
 $('btnHecho').onclick=async()=>{
   if(!selected)return;
+  if(seg&&seg.id===selected.id)pararSeg(false);
   const imp=parseImporte($('aImporte').value);
   if($('aImporte').value.trim()&&imp===null){$('sError').textContent='El importe no es un número válido.';return;}
   try{
@@ -778,7 +883,7 @@ $('btnDelete').onclick=async()=>{
     return;
   }
   try{
-    const b=fdb.batch();await quitarCesion(selected,b);b.delete(fdb.collection('reservas').doc(selected.id));await b.commit();
+    if(seg&&seg.id===selected.id)pararSeg(true);const b=fdb.batch();await quitarCesion(selected,b);b.delete(fdb.collection('ubicaciones').doc(selected.id));b.delete(fdb.collection('reservas').doc(selected.id));await b.commit();
     $('sheet').close();selected=null;toast('Reserva eliminada.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
 };
@@ -789,7 +894,7 @@ $('list').addEventListener('click',async e=>{
   const ids=all.filter(r=>r.estado==='cancelada').map(r=>r.id);
   try{
     for(let i=0;i<ids.length;i+=150){
-      const b=fdb.batch();ids.slice(i,i+150).forEach(id=>{const ref=fdb.collection('cesiones').doc(id);b.delete(ref.collection('privado').doc('cliente'));b.delete(ref);b.delete(fdb.collection('reservas').doc(id));});await b.commit();
+      const b=fdb.batch();ids.slice(i,i+150).forEach(id=>{const ref=fdb.collection('cesiones').doc(id);b.delete(ref.collection('privado').doc('cliente'));b.delete(ref);b.delete(fdb.collection('ubicaciones').doc(id));b.delete(fdb.collection('reservas').doc(id));});await b.commit();
     }
     toast(ids.length+(ids.length===1?' reserva eliminada.':' reservas eliminadas.'));
   }catch(err){toast('No se pudieron eliminar ('+(err.code||err.message)+').');render();}
@@ -820,6 +925,7 @@ $('btnConfirm').onclick=async()=>{
 $('btnCancel').onclick=async()=>{
   if(!selected)return;
   if(!cancelArmed){cancelArmed=true;$('btnCancel').textContent='Pulsa otra vez para cancelar';return;}
+  if(seg&&seg.id===selected.id)pararSeg(false);
   if(selected.gcalId&&gConnected()){try{await gFetch('DELETE','/'+encodeURIComponent(selected.gcalId));}catch(e){toast('Bórralo también a mano en Google Calendar.');}}
   try{
     const b=fdb.batch();

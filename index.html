@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#171A1F">
 <title>MisReservas</title>
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="icon" href="cliente-192.png">
 <link rel="apple-touch-icon" href="cliente-180.png">
 <style>
@@ -51,6 +52,17 @@ textarea{min-height:70px;resize:vertical}
 .assign{margin-top:10px;border-left:3px solid var(--ok);padding:7px 10px;background:rgba(76,195,138,.08);border-radius:0 6px 6px 0;overflow-wrap:anywhere}
 .assign b{font-size:1.1rem}
 .res .cancel{margin-top:10px;background:none;border:1px solid var(--line);color:var(--bad);border-radius:6px;padding:8px 12px;font:inherit;font-size:.9rem;cursor:pointer}
+.segcard{background:var(--card);border:1px solid rgba(76,195,138,.5);border-radius:12px;padding:14px;margin-bottom:14px}
+.segcard h3{margin:0 0 8px;font-size:1.05rem;color:#9FE3C1}
+.segit{padding:8px 0;border-top:1px solid var(--line);font-size:.92rem}
+.segit:first-of-type{border-top:0}
+.segit b{font-size:1rem}
+.segit .eta{font-size:1.15rem;font-weight:700;margin-top:2px}
+.segit small{color:var(--muted);display:block}
+.segit .aviso{color:var(--amber)}
+#segMapa{height:230px;border-radius:10px;margin-top:10px;background:#20252d}
+.leaflet-container{font:inherit}
+.taxi-ico{background:#E8A33D;color:#231600;border-radius:8px;padding:2px 6px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff}
 .empty{color:var(--muted);text-align:center;padding:28px 10px}
 dialog{border:0;border-radius:14px;background:var(--card);color:var(--ink);padding:20px;width:min(92vw,420px)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
@@ -91,6 +103,7 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
   </section>
 
   <section id="viewMias" hidden>
+    <div id="seguimiento" hidden><div class="segcard"><h3>🚕 Tu taxi está en camino</h3><div id="segLista"></div><div id="segMapa"></div><small style="color:var(--muted);display:block;margin-top:6px">Tiempo de llegada aproximado. Si el taxista pierde la conexión, verás su última posición conocida.</small></div></div>
     <div id="mias"><p class="empty">Cargando…</p></div>
   </section>
 
@@ -121,6 +134,7 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="firebase-config.js"></script>
 <script>
 (function(){
@@ -193,11 +207,13 @@ $('lBtn').onclick=async()=>{
 fauth.onAuthStateChanged(u=>{
   renderAcct(u);
   if(unsub){unsub();unsub=null;}
+  if(unsubUb){unsubUb();unsubUb=null;}ubic={};pintarSeguimiento();
   mine=[];prev={};firstSnap=true;
   if(!u){renderMine();return;}
+  unsubUb=fdb.collection('ubicaciones').where('clienteUid','==',u.uid).onSnapshot(s=>{ubic={};s.docs.forEach(d=>{ubic[d.id]=d.data();});pintarSeguimiento();},()=>{});
   unsub=fdb.collection('reservas').where('clienteUid','==',u.uid).onSnapshot(s=>{
     mine=s.docs.map(d=>({id:d.id,...d.data()}));
-    detectChanges();renderMine();
+    detectChanges();renderMine();pintarSeguimiento();
   },err=>{console.error(err);$('mias').innerHTML='<p class="empty">No se pudieron cargar tus reservas ('+esc(err.code||err.message)+').</p>';});
 });
 
@@ -225,6 +241,52 @@ function dayLabel(d){
   if(diff===0)return 'Hoy';if(diff===1)return 'Mañana';if(diff===-1)return 'Ayer';
   return x.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
 }
+/* ---- dónde está mi taxi ---- */
+let ubic={}, unsubUb=null, mapa=null, marcas={};
+function segActivos(){
+  const out=[];
+  for(const id in ubic){
+    const u=ubic[id],r=mine.find(x=>x.id===id);
+    if(!u||!u.activo||!r||r.estado!=='confirmada'||!u.ts||!u.ts.toMillis)continue;
+    if(Date.now()-u.ts.toMillis()>2*3600000)continue;
+    out.push({id,u,r});
+  }
+  return out;
+}
+function haceTxt(ms){const m=Math.round((Date.now()-ms)/60000);return m<1?'ahora mismo':'hace '+m+' min';}
+function pintarSeguimiento(){
+  const act=segActivos(),box=$('seguimiento');
+  if(!act.length){box.hidden=true;return;}
+  box.hidden=false;
+  $('segLista').innerHTML=act.map(({id,u,r})=>{
+    const ts=u.ts.toMillis(),viejo=Date.now()-ts>120000;
+    let eta='Calculando la llegada…';
+    if(u.etaTs){const d=new Date(u.etaTs);eta=u.etaTs<Date.now()?'Debería estar llegando':'Llegada estimada hacia las '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+    else if(u.recogida===null&&u.etaMin==null)eta='En camino';
+    return '<div class="segit"><b>'+esc(u.taxi?'Taxi '+u.taxi:'Tu taxi')+(u.conductor?' · '+u.conductor:'')+'</b> <small>Servicio de las '+esc(r.horaTexto)+' · '+esc(r.origen)+'</small>'+
+      '<div class="eta">'+esc(eta)+'</div>'+(u.distKm!=null?'<small>A unos '+esc(String(u.distKm).replace('.',','))+' km de la recogida</small>':'')+
+      '<small class="'+(viejo?'aviso':'')+'">Última posición: '+esc(haceTxt(ts))+(viejo?' (sin señal ahora mismo)':'')+'</small></div>';
+  }).join('');
+  if(typeof L==='undefined')return;
+  if(!mapa){
+    mapa=L.map('segMapa',{zoomControl:true,attributionControl:true});
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(mapa);
+  }
+  const puntos=[];
+  const vivos=new Set();
+  for(const {id,u} of act){
+    vivos.add(id);
+    const ll=[u.lat,u.lng];puntos.push(ll);
+    const ico=L.divIcon({className:'',html:'<div class="taxi-ico">🚕 '+esc(u.taxi||'Taxi')+'</div>',iconSize:null});
+    if(marcas[id])marcas[id].setLatLng(ll);else marcas[id]=L.marker(ll,{icon:ico}).addTo(mapa);
+    if(u.recogida){const rl=[u.recogida.lat,u.recogida.lng];puntos.push(rl);
+      if(marcas[id+'-r'])marcas[id+'-r'].setLatLng(rl);else marcas[id+'-r']=L.circleMarker(rl,{radius:8,color:'#4CC38A',weight:3,fillOpacity:.6}).addTo(mapa).bindTooltip('Recogida');}
+  }
+  for(const k in marcas){const base=k.replace(/-r$/,'');if(!vivos.has(base)){mapa.removeLayer(marcas[k]);delete marcas[k];}}
+  setTimeout(()=>{mapa.invalidateSize();if(puntos.length===1)mapa.setView(puntos[0],15);else mapa.fitBounds(puntos,{padding:[30,30],maxZoom:16});},50);
+}
+setInterval(()=>{if(!$('seguimiento').hidden)pintarSeguimiento();},30000);
+
 function card(r,old){
   const assign=(r.taxi||r.conductor||r.notaCliente)?'<div class="assign">'+(r.taxi?'<b>Taxi '+esc(r.taxi)+'</b>':'')+(r.conductor?'<div>Conductor: '+esc(r.conductor)+'</div>':'')+(r.notaCliente?'<div>'+esc(r.notaCliente)+'</div>':'')+'</div>':'';
   const meta=[r.nombre,r.pasajeros+(r.pasajeros==1?' pasajero':' pasajeros'),r.maletas?r.maletas+(r.maletas==1?' maleta':' maletas'):'','Código '+r.codigo].filter(Boolean).map(esc).join(', ');
@@ -232,6 +294,7 @@ function card(r,old){
   return '<div class="res'+(flashIds.has(r.id)?' flash':'')+(old?' old':'')+'">'+
     '<div class="top"><span class="when">'+esc(r.horaTexto)+'</span><span class="pill '+esc(r.estado)+'">'+esc(ESTADO[r.estado]||r.estado)+'</span></div>'+
     '<div class="route">'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
+    (segActivos().some(a=>a.id===r.id)?'<div class="meta" style="color:#9FE3C1">📍 Tu taxi está en camino: míralo en el mapa de arriba</div>':'')+
     '<div class="meta">'+meta+'</div>'+(r.notas?'<div class="meta">'+esc(r.notas)+'</div>':'')+
     assign+
     (canCancel?'<button type="button" class="cancel" data-id="'+esc(r.id)+'">'+(cancelArmed===r.id?'Pulsa otra vez para cancelar':'Cancelar reserva')+'</button>':'')+

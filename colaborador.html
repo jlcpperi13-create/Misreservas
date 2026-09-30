@@ -43,6 +43,8 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .b.bad{color:var(--bad)}
 .pushbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(111,160,245,.12);border:1px solid rgba(111,160,245,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
 .pushbar button{flex:none;border:0;background:var(--acc);color:var(--acc-ink);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}
+.segbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(76,195,138,.12);border:1px solid rgba(76,195,138,.45);color:#9FE3C1;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
+.segbar button{flex:none;border:1px solid currentColor;background:none;color:inherit;border-radius:8px;padding:7px 11px;font:inherit;font-weight:700;cursor:pointer}
 .imp{display:flex;gap:8px;margin-top:10px}
 .dev{margin-top:10px;border:1px dashed var(--bad);border-radius:8px;padding:10px}
 .dev p{margin:0 0 8px;font-size:.9rem;color:var(--muted)}
@@ -73,6 +75,7 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
     <button class="out" id="outBtn" type="button">Salir</button>
   </header>
   <div class="me" id="me"></div>
+  <div class="segbar" id="segBar" hidden><span id="segTxt"></span><button type="button" id="segStop">Parar</button></div>
   <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte cuando te pasen un servicio, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
   <div id="list"><p class="empty">Cargando…</p></div>
 </div>
@@ -126,6 +129,79 @@ async function activarAvisos(interactivo){
     return true;
   }catch(e){console.warn(e);if(interactivo)toast('No se pudieron activar los avisos ('+(e.code||e.message)+').');return false;}
 }
+
+/* ---- seguimiento "En camino": comparte la ubicación con el cliente ---- */
+const SEG_KEY='mr-seg-colab';
+let seg=null;
+function haversine(a,b){const R=6371,t=x=>x*Math.PI/180;const dLa=t(b.lat-a.lat),dLo=t(b.lng-a.lng);const h=Math.sin(dLa/2)**2+Math.cos(t(a.lat))*Math.cos(t(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+async function geocodificar(texto,cerca){
+  if(!texto)return null;
+  try{
+    let url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=es&q='+encodeURIComponent(texto);
+    if(cerca)url+='&viewbox='+(cerca.lng-0.4)+','+(cerca.lat+0.4)+','+(cerca.lng+0.4)+','+(cerca.lat-0.4);
+    const r=await fetch(url,{headers:{'Accept-Language':'es'}});const j=await r.json();
+    if(j&&j[0])return {lat:+j[0].lat,lng:+j[0].lon};
+  }catch(e){}
+  return null;
+}
+const mapsIr=d=>'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(d||'');
+const mapsRuta=(o,d)=>'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+encodeURIComponent(o||'')+'&destination='+encodeURIComponent(d||'');
+function empezarSeg(info){
+  if(!('geolocation' in navigator)){toast('Este móvil no permite compartir la ubicación.');return;}
+  if(seg)pararSeg(true);
+  seg={...info,inicio:Date.now(),recogida:null,geo:false,watch:null,lock:null,last:0,lastPos:null};
+  try{localStorage.setItem(SEG_KEY,JSON.stringify({...info,inicio:seg.inicio}));}catch(e){}
+  arrancarWatch();pintarSegBar();
+  toast('En camino: el cliente ya puede ver dónde estás.');
+}
+function arrancarWatch(){
+  if(!seg)return;
+  if(seg.watch!=null)navigator.geolocation.clearWatch(seg.watch);
+  seg.last=0;
+  seg.watch=navigator.geolocation.watchPosition(p=>enviarPos(p),err=>{if(err.code===1){toast('Sin permiso de ubicación: actívalo para el navegador.');pararSeg();}},{enableHighAccuracy:true,maximumAge:5000,timeout:30000});
+  if('wakeLock' in navigator&&!seg.lock){navigator.wakeLock.request('screen').then(l=>{if(seg){seg.lock=l;l.addEventListener('release',()=>{if(seg)seg.lock=null;});}else l.release();}).catch(()=>{});}
+}
+async function enviarPos(p){
+  if(!seg)return;
+  if(Date.now()-seg.inicio>2*3600000){pararSeg();return;}
+  const pos={lat:p.coords.latitude,lng:p.coords.longitude};
+  const movido=seg.lastPos?haversine(seg.lastPos,pos)*1000:1e9;
+  if(Date.now()-seg.last<10000&&movido<50)return;
+  seg.last=Date.now();seg.lastPos=pos;
+  if(!seg.geo){seg.geo=true;seg.recogida=await geocodificar(seg.origen,pos);if(!seg)return;}
+  let distKm=null,etaMin=null;
+  if(seg.recogida){distKm=Math.round(haversine(pos,seg.recogida)*10)/10;etaMin=Math.max(1,Math.round(distKm*2.7));}
+  try{
+    await fdb.collection('ubicaciones').doc(seg.id).set({uid:fauth.currentUser.uid,clienteUid:seg.clienteUid||'',quien:'colaborador',
+      taxi:seg.taxi||'',conductor:seg.conductor||'',lat:pos.lat,lng:pos.lng,precision:Math.round(p.coords.accuracy||0),
+      recogida:seg.recogida||null,distKm,etaMin,etaTs:etaMin!=null?Date.now()+etaMin*60000:null,
+      activo:true,inicio:seg.inicio,ts:firebase.firestore.FieldValue.serverTimestamp()});
+  }catch(e){console.warn('ubicación',e);}
+}
+function pararSeg(silencioso){
+  if(!seg){try{localStorage.removeItem(SEG_KEY);}catch(e){}pintarSegBar();return;}
+  const id=seg.id;
+  if(seg.watch!=null)navigator.geolocation.clearWatch(seg.watch);
+  if(seg.lock)seg.lock.release().catch(()=>{});
+  seg=null;try{localStorage.removeItem(SEG_KEY);}catch(e){}
+  if(!silencioso){fdb.collection('ubicaciones').doc(id).set({activo:false,fin:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});toast('Has dejado de compartir tu ubicación.');}
+  pintarSegBar();
+}
+function reanudarSeg(){
+  if(seg)return;
+  let s=null;try{s=JSON.parse(localStorage.getItem(SEG_KEY)||'null');}catch(e){}
+  if(!s)return;
+  if(Date.now()-s.inicio>2*3600000){try{localStorage.removeItem(SEG_KEY);}catch(e){}return;}
+  seg={...s,recogida:null,geo:false,watch:null,lock:null,last:0,lastPos:null};
+  arrancarWatch();pintarSegBar();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&seg)arrancarWatch();});
+function pintarSegBar(){
+  const b=$('segBar');if(!b)return;
+  b.hidden=!seg;
+  if(seg)$('segTxt').textContent='Compartiendo tu ubicación · servicio de las '+(seg.hora||'')+'. Deja esta app abierta.';
+  if(typeof render==='function')render();
+}
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(async u=>{
   if(unsub){unsub();unsub=null;}
@@ -141,7 +217,7 @@ fauth.onAuthStateChanged(async u=>{
   }
   $('loginView').hidden=true;$('appView').hidden=false;
   $('me').textContent=(me.nombre||'')+(me.taxi?' · Taxi '+me.taxi:'');
-  pintarPushBar();activarAvisos(false);
+  pintarPushBar();activarAvisos(false);reanudarSeg();
   known=null;
   unsub=fdb.collection('cesiones').where('colaboradorUid','==',u.uid).onSnapshot({includeMetadataChanges:true},s=>{
     items=s.docs.map(d=>({id:d.id,...d.data(),_pend:d.metadata.hasPendingWrites}));
@@ -165,6 +241,7 @@ $('lBtn').onclick=async()=>{
   finally{$('lBtn').disabled=false;}
 };
 $('outBtn').onclick=()=>fauth.signOut();
+$('segStop').onclick=()=>pararSeg();
 $('pushBtn').onclick=()=>activarAvisos(true);
 
 /* ---- datos del cliente (solo tras aceptar) ---- */
@@ -209,6 +286,8 @@ function card(x,tipo){
       const tel=String(p.telefono||'').replace(/[^\d+]/g,'');
       h+='<div class="imp"><input type="text" inputmode="decimal" placeholder="Importe cobrado (€)" id="imp-'+esc(x.id)+'"><button class="b ok" data-done="'+esc(x.id)+'">Hecho</button></div>'+
         (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'')+
+        '<div class="row"><a class="b" href="'+esc(mapsIr(x.origen))+'" target="_blank" rel="noopener">Ir a la recogida</a><a class="b" href="'+esc(mapsRuta(x.origen,x.destino))+'" target="_blank" rel="noopener">Ver recorrido</a></div>'+
+        (p.nombre!==undefined||p.telefono!==undefined?'<div class="row"><button class="b" data-seg="'+esc(x.id)+'" style="color:#9FE3C1;border-color:#9FE3C1">'+((seg&&seg.id===x.id)?'⏹ Dejar de compartir mi ubicación':'📍 En camino (compartir mi ubicación)')+'</button></div>':'')+
         (devArmed===x.id
           ?'<div class="dev"><p>Se lo devuelves al taxista para que lo haga él o se lo pase a otro. Dejarás de ver los datos del cliente.</p>'+
             '<input type="text" id="mot-'+esc(x.id)+'" placeholder="Motivo (opcional): avería, retraso…" autocomplete="off">'+
@@ -256,6 +335,14 @@ $('list').addEventListener('click',async e=>{
     catch(err){toast('Error: '+(err.code||err.message));}
     return;
   }
+  const sg=e.target.closest('[data-seg]');
+  if(sg){
+    const x=items.find(i=>i.id===sg.dataset.seg);if(!x)return;
+    if(seg&&seg.id===x.id){pararSeg();return;}
+    const p=privado[x.id]||{};
+    empezarSeg({id:x.reservaId||x.id,clienteUid:p.clienteUid||'',taxi:me.taxi||'',conductor:me.nombre||'',origen:x.origen||'',hora:x.horaTexto||''});
+    return;
+  }
   const dv=e.target.closest('[data-dev]'),dok=e.target.closest('[data-devok]'),dno=e.target.closest('[data-devno]');
   if(dv){devArmed=dv.dataset.dev;render();const m=$('mot-'+devArmed);if(m)m.focus();return;}
   if(dno){devArmed=null;render();return;}
@@ -263,6 +350,7 @@ $('list').addEventListener('click',async e=>{
     const x=items.find(i=>i.id===dok.dataset.devok);if(!x)return;
     const motivo=String(($('mot-'+x.id)||{}).value||'').trim().slice(0,200);
     dok.disabled=true;
+    if(seg&&seg.id===(x.reservaId||x.id))pararSeg(false);
     try{await responder(x,'devuelto',{motivo,taxi:'',conductor:''});devArmed=null;delete privado[x.id];toast('Servicio devuelto. El taxista ya lo sabe.');}
     catch(err){toast('Error: '+(err.code||err.message));render();}
     return;
@@ -279,6 +367,7 @@ $('list').addEventListener('click',async e=>{
       const v=String(($('imp-'+x.id)||{}).value||'').trim().replace(/\s|€/g,'').replace(',','.');
       const imp=v?Math.round(parseFloat(v)*100)/100:null;
       if(v&&!(imp>=0)){toast('El importe no es un número válido.');return;}
+      if(seg&&seg.id===(x.reservaId||x.id))pararSeg(false);
       d.disabled=true;await responder(x,'hecho',{importe:imp});toast('Marcado como hecho.');
     }
   }catch(err){toast('Error: '+(err.code||err.message));render();}
