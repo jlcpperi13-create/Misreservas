@@ -22,6 +22,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;ma
 .tabs button{flex:1;border:0;background:none;color:var(--muted);padding:10px;border-radius:7px;font:inherit;font-weight:600;cursor:pointer}
 .tabs button.on{background:var(--amber);color:var(--amber-ink)}
 .field{margin-bottom:14px}
+.habit{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.habit label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.88rem;margin:0;cursor:pointer}
+.habit input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--amber)}
+.linkbtn{background:none;border:0;color:var(--amber);font:inherit;font-size:.88rem;text-align:left;padding:0;cursor:pointer;text-decoration:underline;overflow-wrap:anywhere}
 label{display:block;color:var(--muted);font-size:.9rem;margin-bottom:6px}
 input,textarea{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:12px 14px;font:inherit;min-height:48px}
 textarea{min-height:70px;resize:vertical}
@@ -90,7 +94,11 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
         <div class="field"><label for="fecha">Fecha</label><input type="date" id="fecha"></div>
         <div class="field"><label for="hora">Hora</label><input type="time" id="hora"></div>
       </div>
-      <div class="field"><label for="origen">Origen</label><input type="text" id="origen" autocomplete="off"></div>
+      <div class="field"><label for="origen">Origen (recogida)</label><input type="text" id="origen" autocomplete="off" placeholder="Dirección completa y ciudad">
+        <div class="habit">
+          <button type="button" class="linkbtn" id="habitUse" hidden></button>
+          <label id="habitBox" hidden><input type="checkbox" id="habitChk"> Guardar como mi dirección de recogida habitual</label>
+        </div></div>
       <div class="field"><label for="destino">Destino</label><input type="text" id="destino" autocomplete="off"></div>
       <div class="field"><label for="nombre">Nombre</label><input type="text" id="nombre" autocomplete="name"></div>
       <div class="field"><label for="telefono">Teléfono</label><input type="tel" id="telefono" inputmode="tel" autocomplete="tel"></div>
@@ -149,6 +157,35 @@ let unsub=null, mine=[], prev={}, firstSnap=true, flashIds=new Set(), cancelArme
 
 const AVISOS_URL='https://avisar-552584306003.europe-west1.run.app';
 function avisar(tipo,id){try{fetch(AVISOS_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,id}),keepalive:true}).catch(()=>{});}catch(e){}}
+/* ---- dirección de recogida habitual ---- */
+let habitual='';
+try{habitual=localStorage.getItem('mr-origen')||'';}catch(e){}
+async function cargarHabitual(u){
+  if(u){
+    try{const d=await fdb.collection('perfiles').doc(u.uid).get();if(d.exists&&d.data().origenHabitual)habitual=d.data().origenHabitual;}catch(e){}
+  }
+  if(habitual&&!$('origen').value.trim())$('origen').value=habitual;
+  pintarHabitual();
+}
+async function guardarHabitual(dir){
+  habitual=dir;
+  try{localStorage.setItem('mr-origen',dir);}catch(e){}
+  const u=fauth.currentUser;
+  if(u){try{await fdb.collection('perfiles').doc(u.uid).set({origenHabitual:dir,actualizado:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){}}
+}
+function pintarHabitual(){
+  const v=$('origen').value.trim();
+  const distinta=!!habitual&&v!==habitual;
+  $('habitUse').hidden=!distinta;
+  if(distinta)$('habitUse').textContent='Usar mi dirección habitual: '+habitual;
+  $('habitBox').hidden=!(distinta&&v);
+  if(!distinta)$('habitChk').checked=false;
+}
+$('origen').addEventListener('input',pintarHabitual);
+$('habitUse').onclick=()=>{$('origen').value=habitual;pintarHabitual();};
+if(habitual)$('origen').value=habitual;
+setTimeout(pintarHabitual,0);
+
 /* ---- valores iniciales ---- */
 (function initForm(){
   const d=new Date(Date.now()+60*60000); d.setMinutes(0,0,0);
@@ -204,8 +241,15 @@ $('lBtn').onclick=async()=>{
 };
 
 /* ---- mis reservas en directo ---- */
+let pedirEntrar=/[?&]entrar\b/.test(location.search);
 fauth.onAuthStateChanged(u=>{
+  if(pedirEntrar){
+    pedirEntrar=false;
+    if(!u||u.isAnonymous){$('lError').textContent='';setTimeout(()=>{if(!$('loginDlg').open)$('loginDlg').showModal();},300);}
+    try{history.replaceState(null,'',location.pathname);}catch(e){}
+  }
   renderAcct(u);
+  cargarHabitual(u);
   if(unsub){unsub();unsub=null;}
   if(unsubUb){unsubUb();unsubUb=null;}ubic={};pintarSeguimiento();
   mine=[];prev={};firstSnap=true;
@@ -385,7 +429,8 @@ $('bookingForm').addEventListener('submit',async e=>{
     const nuevaRef=await fdb.collection('reservas').add(data);
     avisar('nueva',nuevaRef.id);
     try{localStorage.setItem('mr-cliente',JSON.stringify({nombre,telefono}));}catch(e){}
-    $('origen').value='';$('destino').value='';$('notas').value='';
+    if(!habitual||$('habitChk').checked)await guardarHabitual(origen);
+    $('origen').value=habitual||'';$('destino').value='';$('notas').value='';pintarHabitual();
     counts.pasajeros=1;counts.maletas=0;$('pasajerosCount').textContent='1';$('maletasCount').textContent='0';
     if(u){toast('Reserva enviada (código '+codigo+'). Aquí verás cuándo la confirmo.');showTab('mias');}
     else toast('Reserva enviada. Tu código es '+codigo+'.');
