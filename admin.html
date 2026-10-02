@@ -33,6 +33,14 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;ma
 .tabs button.on{background:var(--amber);color:var(--amber-ink)}
 .day{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
 .row{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:start;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:8px;color:var(--ink);font:inherit;cursor:pointer}
+.row{position:relative;overflow:hidden}
+.row.cc{padding-left:18px}
+.row.cc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--cc)}
+.cdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.pal{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 6px}
+.pal button{width:38px;height:38px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.pal button.on{border-color:#fff;box-shadow:0 0 0 2px var(--bg)}
+.pal button.none{background:transparent;border:2px dashed var(--line);color:var(--muted);font-size:1.1rem}
 .row .t{font-weight:700;font-size:1.3rem;font-variant-numeric:tabular-nums}
 .row .r{min-width:0;overflow-wrap:anywhere}
 .row .m{color:var(--muted);font-size:.86rem;margin-top:2px}
@@ -136,8 +144,8 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <div class="field"><label for="meTaxi">Número de taxi</label><input type="text" id="meTaxi" inputmode="numeric" autocomplete="off"></div>
     <div class="field"><label for="meNombre">Tu nombre</label><input type="text" id="meNombre" autocomplete="off"></div>
   </div>
-  <div class="field"><label for="meAviso">Aviso por defecto en Google Calendar</label>
-    <select id="meAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
+  <div class="field"><label for="meAviso">Recordatorio por defecto en el móvil</label>
+    <select id="meAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="90">1 h 30 min antes</option><option value="120">2 horas antes</option><option value="180">3 horas antes</option><option value="240">4 horas antes</option></select></div>
   <button class="btn" type="button" id="gBtn" hidden style="width:100%;margin-bottom:12px">Conectar Google Calendar</button>
   <button class="btn" type="button" id="colBtn" style="width:100%;margin-bottom:12px">Colaboradores</button>
   <div class="actions">
@@ -189,8 +197,8 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
   <div class="field"><label for="nNotas">Notas (opcional)</label><textarea id="nNotas"></textarea></div>
   <div class="grid2">
     <div class="field"><label for="nImporte">Importe (€, opcional)</label><input type="text" id="nImporte" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
-    <div class="field"><label for="nAviso">Aviso en calendario</label>
-      <select id="nAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
+    <div class="field"><label for="nAviso">Recordatorio en el móvil</label>
+      <select id="nAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="90">1 h 30 min antes</option><option value="120">2 horas antes</option><option value="180">3 horas antes</option><option value="240">4 horas antes</option></select></div>
   </div>
   <div class="error" id="nError"></div>
   <div class="actions">
@@ -212,6 +220,11 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     </div>
     <div class="field"><label for="aNota">Nota para el cliente</label><textarea id="aNota" placeholder="Te recoge mi compañero en la puerta principal…"></textarea></div>
   </div>
+  <div class="box" id="colorBox">
+    <h3>Color de este cliente</h3>
+    <p id="colorQuien" style="margin-bottom:8px"></p>
+    <div class="pal" id="pal"></div>
+  </div>
   <div class="box" id="cBox">
     <h3>Pasar a colaborador</h3>
     <p class="cstate" id="cState"></p>
@@ -228,8 +241,8 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <h3>Para ti</h3>
     <div class="grid2">
       <div class="field"><label for="aImporte">Importe cobrado (€)</label><input type="text" id="aImporte" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
-      <div class="field"><label for="aAviso">Aviso en calendario</label>
-        <select id="aAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="120">2 horas antes</option></select></div>
+      <div class="field"><label for="aAviso">Recordatorio en el móvil</label>
+        <select id="aAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="90">1 h 30 min antes</option><option value="120">2 horas antes</option><option value="180">3 horas antes</option><option value="240">4 horas antes</option></select></div>
     </div>
     <div id="sGcal" class="gcal"></div>
   </div>
@@ -469,7 +482,7 @@ function asignacion(){const u=yo();return u?{asignadoA:u.uid,asignadoEmail:u.ema
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(u=>{
   if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();pintarPushBar();activarAvisos(false);reanudarSeg();}
-  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}if(unsubU){unsubU();unsubU=null;}known=null;}
+  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}if(unsubU){unsubU();unsubU=null;}if(unsubCol){unsubCol();unsubCol=null;}known=null;}
 });
 $('loginBtn').onclick=async()=>{
   unlockAudio();
@@ -489,6 +502,8 @@ function subscribeExtra(){
   if(unsubU)unsubU();
   unsubU=fdb.collection('ubicaciones').onSnapshot(s=>{const n={};s.docs.forEach(d=>{n[d.id]=d.data();});const cambio=Object.keys(n).some(k=>!!(n[k].activo)!==!!(ubic[k]&&ubic[k].activo))||Object.keys(ubic).length!==Object.keys(n).length;ubic=n;if(cambio)render();if(selected&&$('sheet').open)pintarBotonesMapa(selected);},()=>{});
   if(unsubC)unsubC();
+  if(unsubCol)unsubCol();
+  unsubCol=fdb.collection('ajustes').doc('clientes').onSnapshot(d=>{colores=(d.exists&&d.data().colores)||{};render();if(selected&&$('sheet').open)pintarPaleta(selected);},()=>{});
   unsubC=fdb.collection('colaboradores').onSnapshot(s=>{
     colabs=s.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'','es'));
     if($('colDlg').open)renderColabs();
@@ -536,6 +551,18 @@ function dayLabel(t){
   return d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
 }
 let resMes=(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()};})();
+const PALETA=['#E8A33D','#4CC38A','#6FA0F5','#F07A6E','#B48CF2','#E6C84F','#5CC8E0','#F59BC7'];
+let colores={}, unsubCol=null;
+function colorCliente(r){const k=claveCliente(r).k;return k!=='-'?colores[k]||'':'';}
+function pintarPaleta(r){
+  const c=claveCliente(r);
+  $('colorBox').hidden=c.k==='-';
+  if(c.k==='-')return;
+  $('colorQuien').textContent=c.n+(c.sub&&c.sub!==c.n?' · '+c.sub:'')+'. Todas sus reservas saldrán con este color en tu lista.';
+  const act=colores[c.k]||'';
+  $('pal').innerHTML='<button type="button" class="none'+(act?'':' on')+'" data-col="" aria-label="Sin color">✕</button>'+
+    PALETA.map(p=>'<button type="button" style="background:'+p+'"'+(act===p?' class="on"':'')+' data-col="'+p+'" aria-label="Color"></button>').join('');
+}
 function claveCliente(r){
   if(r.clienteCuenta)return {k:'c:'+r.clienteCuenta,n:r.clienteCuenta.split('@')[0],sub:r.clienteCuenta,q:r.clienteCuenta};
   const t=String(r.telefono||'').replace(/\D/g,'').replace(/^34(?=\d{9}$)/,'');
@@ -549,7 +576,7 @@ function renderResumen(){
   const map=new Map();let total=0,sinImp=0;
   for(const r of del){
     const c=claveCliente(r);let g=map.get(c.k);
-    if(!g){g={n:c.n,sub:c.sub,q:c.q,count:0,imp:0,sin:0};map.set(c.k,g);}
+    if(!g){g={k:c.k,n:c.n,sub:c.sub,q:c.q,count:0,imp:0,sin:0};map.set(c.k,g);}
     g.count++;
     if(typeof r.importe==='number'){g.imp+=r.importe;total+=r.importe;}else{g.sin++;sinImp++;}
   }
@@ -559,7 +586,7 @@ function renderResumen(){
     '<div class="kpis"><div class="kpi"><span>Servicios</span><b>'+del.length+'</b></div><div class="kpi"><span>Importe</span><b>'+esc(eur(total))+'</b></div><div class="kpi"><span>Sin importe</span><b>'+sinImp+'</b></div></div>';
   if(!rows.length)html+='<p class="empty">No hay servicios confirmados en este mes.</p>';
   for(const g of rows){
-    html+='<button type="button" class="crow" data-q="'+esc(g.q)+'"><span class="n">'+esc(g.n)+(g.sub&&g.sub!==g.n?'<small>'+esc(g.sub)+'</small>':'')+'</span>'+
+    html+='<button type="button" class="crow" data-q="'+esc(g.q)+'"><span class="n">'+(colores[g.k]?'<i class="cdot" style="background:'+esc(colores[g.k])+'"></i>':'')+esc(g.n)+(g.sub&&g.sub!==g.n?'<small>'+esc(g.sub)+'</small>':'')+'</span>'+
       '<span class="c">'+g.count+(g.count===1?' servicio':' servicios')+(g.sin?'<br><small>'+g.sin+' sin importe</small>':'')+'</span>'+
       '<span class="e">'+esc(eur(g.imp))+'</span></button>';
   }
@@ -610,7 +637,8 @@ function render(){
   }
   for(const r of items){
     const l=dayLabel(ms(r));if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}
-    html+='<button type="button" class="row '+esc(r.estado)+'" data-id="'+esc(r.id)+'">'+
+    const cc=colorCliente(r);
+    html+='<button type="button" class="row '+esc(r.estado)+(cc?' cc':'')+'"'+(cc?' style="--cc:'+esc(cc)+'"':'')+' data-id="'+esc(r.id)+'">'+
       '<span class="t">'+esc(r.horaTexto)+'</span>'+
       '<span class="r"><div>'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
       '<div class="m">'+[r.nombre,r.pasajeros+' pax',r.maletas?r.maletas+' mal.':''].filter(Boolean).map(esc).join(', ')+'</div>'+
@@ -654,6 +682,7 @@ function openSheet(r){
   $('sGcal').textContent=r.gcalId&&gConnected()?'En tu Google Calendar':'';
   $('btnGcal').hidden=gConnected()||r.estado==='cancelada';$('btnGcal').href=gcalLink(r);
   renderCesionBox(r);
+  pintarPaleta(r);
   $('btnEditOwn').hidden=r.fuente!=='propio';
   delArmed=false;$('btnDelete').hidden=false;
   $('btnOcultar').hidden=!(r.estado==='cancelada'||r.estado==='realizada');$('btnOcultar').textContent=r.ocultoAdmin?'Volver a mostrar en mi lista':'Quitar de mi lista';$('btnDelete').textContent='Eliminar definitivamente';
@@ -700,7 +729,8 @@ $('nSave').onclick=async()=>{
   if(gConnected()){try{data.gcalId=await syncEvent({...(editingOwn||{}),...data});}catch(e){calFail=true;}}
   try{
     if(editingOwn){
-      await fdb.collection('reservas').doc(editingOwn.id).update({...data,actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+      const cambio=editingOwn.fechaTexto!==data.fechaTexto||editingOwn.horaTexto!==data.horaTexto||(editingOwn.aviso==null?30:+editingOwn.aviso)!==data.aviso;
+      await fdb.collection('reservas').doc(editingOwn.id).update({...data,...(cambio?{'avisos.recordatorio':firebase.firestore.FieldValue.delete()}:{}),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
     }else{
       await fdb.collection('reservas').add({...data,
         codigo:'P'+Math.random().toString(36).slice(2,7).toUpperCase(),
@@ -869,6 +899,15 @@ $('btnOcultar').onclick=async()=>{
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
 };
 $('list').addEventListener('click',e=>{if(e.target.closest('#toggleOcultos')){verOcultos=!verOcultos;render();}});
+$('pal').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-col]');if(!b||!selected)return;
+  const k=claveCliente(selected).k;if(k==='-')return;
+  const nuevo={...colores};
+  if(b.dataset.col)nuevo[k]=b.dataset.col;else delete nuevo[k];
+  colores=nuevo;pintarPaleta(selected);render();
+  try{await fdb.collection('ajustes').doc('clientes').set({colores:nuevo});toast(b.dataset.col?'Color guardado para este cliente.':'Color quitado.');}
+  catch(err){toast('No se pudo guardar el color ('+(err.code||err.message)+').');}
+});
 $('btnDelete').onclick=async()=>{
   if(!selected)return;
   if(!delArmed){
@@ -912,7 +951,7 @@ $('btnConfirm').onclick=async()=>{
   if(gConnected()&&esMio){try{gcalId=await syncEvent({...selected,aviso});}catch(e){calFail=true;}}
   try{
     await fdb.collection('reservas').doc(selected.id).update({
-      importe:imp,aviso,...(gcalId?{gcalId}:{}),
+      importe:imp,aviso,...(gcalId?{gcalId}:{}),...((selected.aviso==null?30:+selected.aviso)!==aviso?{'avisos.recordatorio':firebase.firestore.FieldValue.delete()}:{}),
       estado:selected.estado==='realizada'?'realizada':'confirmada',
       ...((!selected.asignadoA||(selected.estado!=='confirmada'&&selected.estado!=='realizada'))?asignacion():{}),
       taxi:$('aTaxi').value.trim(),conductor:$('aConductor').value.trim(),notaCliente:$('aNota').value.trim(),
