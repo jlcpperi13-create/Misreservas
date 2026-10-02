@@ -295,7 +295,7 @@ function card(x,tipo){
           :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
     }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='cancelado'){
-    h+='<div class="row"><span class="pill cancelado">Cancelado por el taxista</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
+    h+='<div class="row"><span class="pill cancelado">Servicio anulado</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='rechazado'){
     h+='<div class="row"><span class="pill rechazado">Rechazado</span></div>';
   }

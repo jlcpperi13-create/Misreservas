@@ -130,6 +130,27 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
   <button class="ghost" type="button" id="lClose">Cerrar</button>
 </dialog>
 
+<dialog id="modDlg">
+  <h2>Modificar reserva</h2>
+  <p>Al guardar, la reserva vuelve a <b>pendiente</b> hasta que el taxista confirme los cambios.</p>
+  <div class="row2">
+    <div class="field"><label for="mFecha">Fecha</label><input type="date" id="mFecha"></div>
+    <div class="field"><label for="mHora">Hora</label><input type="time" id="mHora"></div>
+  </div>
+  <div class="field"><label for="mOrigen">Origen (recogida)</label><input type="text" id="mOrigen" autocomplete="off"></div>
+  <div class="field"><label for="mDestino">Destino</label><input type="text" id="mDestino" autocomplete="off"></div>
+  <div class="row2">
+    <div class="field"><label for="mNombre">Nombre</label><input type="text" id="mNombre" autocomplete="off"></div>
+    <div class="field"><label for="mTel">Teléfono</label><input type="tel" id="mTel" inputmode="tel" autocomplete="off"></div>
+    <div class="field"><label for="mPax">Pasajeros</label><input type="number" id="mPax" min="1" max="8" inputmode="numeric"></div>
+    <div class="field"><label for="mMal">Maletas</label><input type="number" id="mMal" min="0" max="20" inputmode="numeric"></div>
+  </div>
+  <div class="field"><label for="mNotas">Notas</label><textarea id="mNotas"></textarea></div>
+  <div class="error" id="mErr"></div>
+  <button class="submit" type="button" id="mSave">Guardar cambios</button>
+  <button class="ghost" type="button" id="mClose">Cerrar</button>
+</dialog>
+
 <dialog id="outDlg">
   <h2 id="outTitle">Cuenta</h2>
   <p>Si sales, en este dispositivo dejarás de ver tus reservas hasta que vuelvas a entrar.</p>
@@ -334,13 +355,16 @@ setInterval(()=>{if(!$('seguimiento').hidden)pintarSeguimiento();},30000);
 function card(r,old){
   const assign=(r.taxi||r.conductor||r.notaCliente)?'<div class="assign">'+(r.taxi?'<b>Taxi '+esc(r.taxi)+'</b>':'')+(r.conductor?'<div>Conductor: '+esc(r.conductor)+'</div>':'')+(r.notaCliente?'<div>'+esc(r.notaCliente)+'</div>':'')+'</div>':'';
   const meta=[r.nombre,r.pasajeros+(r.pasajeros==1?' pasajero':' pasajeros'),r.maletas?r.maletas+(r.maletas==1?' maleta':' maletas'):'','Código '+r.codigo].filter(Boolean).map(esc).join(', ');
-  const canCancel=r.estado==='pendiente'&&!old;
+  const activa=(r.estado==='pendiente'||r.estado==='confirmada')&&!old;
+  const canCancel=activa;
   return '<div class="res'+(flashIds.has(r.id)?' flash':'')+(old?' old':'')+'">'+
     '<div class="top"><span class="when">'+esc(r.horaTexto)+'</span><span class="pill '+esc(r.estado)+'">'+esc(ESTADO[r.estado]||r.estado)+'</span></div>'+
     '<div class="route">'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
     (segActivos().some(a=>a.id===r.id)?'<div class="meta" style="color:#9FE3C1">📍 Tu taxi está en camino: míralo en el mapa de arriba</div>':'')+
     '<div class="meta">'+meta+'</div>'+(r.notas?'<div class="meta">'+esc(r.notas)+'</div>':'')+
     assign+
+    (r.modificada&&r.estado==='pendiente'?'<div class="meta" style="color:var(--amber)">✏️ Cambios enviados: pendiente de que el taxista los confirme</div>':'')+
+    (activa?'<button type="button" class="cancel mod" data-mod="'+esc(r.id)+'" style="color:var(--ink);margin-right:8px">Modificar</button>':'')+
     (canCancel?'<button type="button" class="cancel" data-id="'+esc(r.id)+'">'+(cancelArmed===r.id?'Pulsa otra vez para cancelar':'Cancelar reserva')+'</button>':'')+
     (r.estado==='cancelada'?'<button type="button" class="cancel hide" data-hide="'+esc(r.id)+'" style="color:var(--muted)">Quitar de la lista</button>':'')+
     '</div>';
@@ -396,6 +420,8 @@ $('mias').addEventListener('click',async e=>{
     catch(err){toast('No se pudo quitar ('+(err.code||err.message)+').');}
     return;
   }
+  const m=e.target.closest('[data-mod]');
+  if(m){abrirMod(m.dataset.mod);return;}
   const b=e.target.closest('.cancel');if(!b)return;
   const id=b.dataset.id;
   if(cancelArmed!==id){cancelArmed=id;renderMine();return;}
@@ -403,6 +429,38 @@ $('mias').addEventListener('click',async e=>{
   try{await fdb.collection('reservas').doc(id).update({estado:'cancelada'});avisar('cancelada',id);toast('Reserva cancelada.');}
   catch(err){toast('No se pudo cancelar ('+(err.code||err.message)+').');renderMine();}
 });
+
+/* ---- modificar una reserva ---- */
+let modId=null;
+function abrirMod(id){
+  const r=mine.find(x=>x.id===id);if(!r)return;
+  modId=id;
+  $('mFecha').value=r.fechaTexto||'';$('mHora').value=r.horaTexto||'';
+  $('mOrigen').value=r.origen||'';$('mDestino').value=r.destino||'';
+  $('mNombre').value=r.nombre||'';$('mTel').value=r.telefono||'';
+  $('mPax').value=r.pasajeros||1;$('mMal').value=r.maletas||0;$('mNotas').value=r.notas||'';
+  $('mErr').textContent='';
+  $('modDlg').showModal();
+}
+$('mClose').onclick=()=>$('modDlg').close();
+$('mSave').onclick=async()=>{
+  const r=mine.find(x=>x.id===modId);if(!r)return;
+  const fecha=$('mFecha').value,hora=$('mHora').value,origen=$('mOrigen').value.trim(),destino=$('mDestino').value.trim();
+  const nombre=$('mNombre').value.trim(),telefono=$('mTel').value.trim();
+  if(!fecha||!hora||!origen||!destino||!nombre||!telefono){$('mErr').textContent='Falta rellenar algún campo.';return;}
+  const fh=new Date(fecha+'T'+hora);
+  if(fh<new Date()){$('mErr').textContent='La fecha y hora ya han pasado.';return;}
+  const upd={fechaTexto:fecha,horaTexto:hora,fechaHora:firebase.firestore.Timestamp.fromDate(fh),origen,destino,nombre,telefono,
+    pasajeros:Math.min(8,Math.max(1,parseInt($('mPax').value,10)||1)),maletas:Math.min(20,Math.max(0,parseInt($('mMal').value,10)||0)),
+    notas:$('mNotas').value.trim(),estado:'pendiente',modificada:true,modificadaEn:firebase.firestore.FieldValue.serverTimestamp()};
+  $('mSave').disabled=true;
+  try{
+    await fdb.collection('reservas').doc(modId).update(upd);
+    avisar('modificada',modId);
+    $('modDlg').close();toast('Cambios enviados. El taxista los confirmará en breve.');
+  }catch(err){$('mErr').textContent='No se pudo guardar ('+(err.code||err.message)+').';}
+  finally{$('mSave').disabled=false;}
+};
 
 /* ---- enviar reserva ---- */
 function generarCodigo(){return 'R'+Math.random().toString(36).slice(2,7).toUpperCase();}

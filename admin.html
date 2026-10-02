@@ -642,6 +642,7 @@ function render(){
       '<span class="t">'+esc(r.horaTexto)+'</span>'+
       '<span class="r"><div>'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
       '<div class="m">'+[r.nombre,r.pasajeros+' pax',r.maletas?r.maletas+' mal.':''].filter(Boolean).map(esc).join(', ')+'</div>'+
+      (r.modificada&&r.estado==='pendiente'?'<span class="tag" style="color:var(--amber);border-color:currentColor">✏️ modificada</span>':'')+
       (ubicActiva(r.id)?'<span class="tag camino">📍 en camino</span>':'')+
       (r.fuente==='propio'?'<span class="tag own">Propio</span>':'')+
       (typeof r.importe==='number'?'<span class="tag">'+esc(eur(r.importe))+'</span>':'')+
@@ -761,7 +762,7 @@ function renderCesionBox(r){
   if(r.estado==='cancelada'&&!r.colaboradorUid){box.hidden=true;return;}
   box.hidden=false;
   const c=colabs.find(x=>x.uid===r.colaboradorUid);
-  const activo=r.colaboradorUid&&r.cesion!=='rechazado'&&r.cesion!=='devuelto';
+  const activo=r.colaboradorUid&&r.cesion!=='rechazado'&&r.cesion!=='devuelto'&&r.cesion!=='cancelado';
   if(activo){
     const nom=r.colaboradorNombre||(c&&c.nombre)||'colaborador';
     $('cState').textContent='Pasado a '+nom+': '+(CESION[r.cesion]||r.cesion)+'.'+(r.cesion==='ofrecido'?' Aún no ha respondido.':'');
@@ -774,6 +775,7 @@ function renderCesionBox(r){
   if(!colabs.length){$('cState').textContent='Aún no tienes colaboradores. Añádelos en Mi taxi, Colaboradores.';$('cForm').hidden=true;return;}
   const mot=(cesiones[r.id]&&cesiones[r.id].motivo)?' Motivo: '+cesiones[r.id].motivo+'.':'';
   $('cState').textContent=r.cesion==='rechazado'?('Rechazado por '+(r.colaboradorNombre||'el colaborador')+'. Puedes pasárselo a otro.'):
+    r.cesion==='cancelado'?('Anulado para '+(r.colaboradorNombre||'el colaborador')+' porque el cliente cambió o canceló la reserva. Puedes volver a pasárselo.'):
     r.cesion==='devuelto'?('Devuelto por '+(r.colaboradorNombre||'el colaborador')+'.'+mot+' Hazlo tú o pásaselo a otro.'):'Elige a quién se lo pasas. Verá el recorrido, y los datos del cliente solo cuando lo acepte.';
   $('cSel').innerHTML=colabs.map(x=>'<option value="'+esc(x.uid)+'">'+esc((x.nombre||'Sin nombre')+(x.taxi?' · taxi '+x.taxi:''))+'</option>').join('');
   $('cForm').hidden=r.estado==='cancelada';
@@ -952,7 +954,8 @@ $('btnConfirm').onclick=async()=>{
   try{
     await fdb.collection('reservas').doc(selected.id).update({
       importe:imp,aviso,...(gcalId?{gcalId}:{}),...((selected.aviso==null?30:+selected.aviso)!==aviso?{'avisos.recordatorio':firebase.firestore.FieldValue.delete()}:{}),
-      estado:selected.estado==='realizada'?'realizada':'confirmada',
+      estado:selected.estado==='realizada'?'realizada':'confirmada',modificada:false,
+      ...(selected.estado==='pendiente'?{'avisos.recordatorio':firebase.firestore.FieldValue.delete()}:{}),
       ...((!selected.asignadoA||(selected.estado!=='confirmada'&&selected.estado!=='realizada'))?asignacion():{}),
       taxi:$('aTaxi').value.trim(),conductor:$('aConductor').value.trim(),notaCliente:$('aNota').value.trim(),
       actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
