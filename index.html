@@ -37,6 +37,13 @@ textarea{min-height:70px;resize:vertical}
 .error{color:var(--bad);min-height:1.3em;margin:6px 0 10px}
 .submit{width:100%;background:var(--amber);color:var(--amber-ink);border:0;border-radius:6px;padding:15px;font:inherit;font-weight:700;font-size:1.05rem;cursor:pointer}
 .submit:disabled{opacity:.6}
+.priv{margin:6px 0 10px;background:var(--card);border:1px solid var(--line);border-radius:8px}
+.priv summary{cursor:pointer;padding:11px 13px;font-weight:600;color:var(--muted)}
+.privtxt{padding:0 13px 10px;font-size:.84rem;color:var(--muted);line-height:1.5}
+.privtxt p{margin:0 0 8px}
+.privtxt b{color:var(--ink)}
+.chk{display:flex;gap:10px;align-items:flex-start;color:var(--ink);font-size:.92rem;margin:0 0 6px;cursor:pointer}
+.chk input{width:22px;height:22px;min-height:0;flex:none;margin-top:1px;accent-color:var(--amber)}
 .pushbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
 .pushbar button{flex:none;border:0;background:var(--amber);color:var(--amber-ink);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}
 .ghost{width:100%;background:none;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:13px;font:inherit;font-weight:600;cursor:pointer;margin-top:10px}
@@ -108,6 +115,8 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
       <div class="counter"><span>Pasajeros</span><div><button type="button" data-k="pasajeros" data-d="-1" aria-label="Menos pasajeros">−</button><output id="pasajerosCount">1</output><button type="button" data-k="pasajeros" data-d="1" aria-label="Más pasajeros">+</button></div></div>
       <div class="counter"><span>Maletas</span><div><button type="button" data-k="maletas" data-d="-1" aria-label="Menos maletas">−</button><output id="maletasCount">0</output><button type="button" data-k="maletas" data-d="1" aria-label="Más maletas">+</button></div></div>
       <div class="field"><label for="notas">Notas (opcional)</label><textarea id="notas" placeholder="Habitación, número de vuelo, silla de niño…"></textarea></div>
+      <details class="priv" id="privBox"><summary>Política de privacidad</summary><div class="privtxt" id="privTexto">Cargando…</div></details>
+      <label class="chk"><input type="checkbox" id="privOk"><span>He leído y acepto la política de privacidad</span></label>
       <div class="error" id="formError"></div>
       <button class="submit" id="submitBtn" type="submit">Confirmar reserva</button>
     </form>
@@ -239,6 +248,29 @@ async function activarAvisos(interactivo){
   }catch(e){console.warn(e);if(interactivo)toast('No se pudieron activar los avisos ('+(e.code||e.message)+').');return false;}
 }
 $('pushBtn').onclick=()=>activarAvisos(true);
+
+/* ---- política de privacidad (plantilla con los datos del titular) ---- */
+const PRIV_VERSION='v1';
+let legal={};
+function privacidadHTML(d){
+  const f=(v,t)=>v?esc(v):'<i style="color:var(--bad)">['+t+' pendiente de completar]</i>';
+  const meses=+d.meses||12;
+  return '<p><b>Responsable del tratamiento:</b> '+f(d.nombre,'nombre')+', NIF '+f(d.nif,'NIF')+', '+f(d.direccion,'dirección')+'. Correo de contacto: '+f(d.email,'correo')+'.</p>'+
+    '<p><b>Qué datos tratamos:</b> nombre, teléfono, direcciones de recogida y destino, fecha y hora del servicio, número de pasajeros y maletas, notas que nos indiques y, si tienes cuenta, tu correo electrónico.</p>'+
+    '<p><b>Para qué:</b> gestionar y realizar los servicios de taxi que solicitas, comunicarte su estado (confirmación, taxi asignado, cambios) y, si activas los avisos, enviarte notificaciones sobre tus reservas.</p>'+
+    '<p><b>Base legal:</b> la ejecución del servicio que nos solicitas (artículo 6.1.b del Reglamento General de Protección de Datos). Los avisos en el móvil solo se envían si los activas tú.</p>'+
+    '<p><b>Destinatarios:</b> si el servicio lo realiza otro taxista colaborador, recibirá los datos necesarios para hacerlo, solo después de aceptarlo. Los datos se alojan en servicios de Google (Firebase y Google Cloud) como proveedor tecnológico, con las garantías del Reglamento. No se ceden a terceros salvo obligación legal.</p>'+
+    '<p><b>Ubicación del taxi:</b> durante un servicio, el taxista puede compartir su posición para que veas por dónde va. Solo se comparte en ese servicio y se detiene al terminarlo.</p>'+
+    '<p><b>Conservación:</b> tus reservas se conservan durante '+meses+(meses===1?' mes':' meses')+' desde la fecha del servicio, salvo que una obligación legal exija un plazo mayor.</p>'+
+    '<p><b>Tus derechos:</b> puedes solicitar el acceso, rectificación, supresión, oposición, limitación del tratamiento y portabilidad de tus datos escribiendo a '+f(d.email,'correo')+'. También puedes reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).</p>'+
+    '<p><b>Almacenamiento en tu dispositivo:</b> la app guarda en tu navegador la sesión y tus preferencias (como tu dirección habitual) solo para funcionar. No usamos cookies de publicidad ni de análisis.</p>';
+}
+async function cargarLegal(){
+  try{const d=await fdb.collection('ajustes').doc('legal').get();legal=d.exists?d.data():{};}catch(e){legal={};}
+  $('privTexto').innerHTML=privacidadHTML(legal);
+}
+cargarLegal();
+try{if(localStorage.getItem('mr-priv')===PRIV_VERSION)$('privOk').checked=true;}catch(e){}
 /* ---- valores iniciales ---- */
 (function initForm(){
   const d=new Date(Date.now()+60*60000); d.setMinutes(0,0,0);
@@ -507,6 +539,7 @@ $('bookingForm').addEventListener('submit',async e=>{
   if(!fecha||!hora||!origen||!destino||!nombre||!telefono){errorEl.textContent='Falta rellenar algún campo.';return;}
   const fechaHora=new Date(fecha+'T'+hora);
   if(fechaHora<new Date()){errorEl.textContent='La fecha y hora ya han pasado.';return;}
+  if(!$('privOk').checked){errorEl.textContent='Para reservar, marca la casilla de la política de privacidad.';$('privBox').open=true;return;}
   btn.disabled=true;btn.textContent='Enviando…';
   try{
     if(!fauth.currentUser){try{await fauth.signInAnonymously();}catch(err){console.warn('Sin acceso anónimo',err);}}
@@ -514,10 +547,11 @@ $('bookingForm').addEventListener('submit',async e=>{
     const codigo=generarCodigo();
     const data={codigo,nombre,telefono,origen,destino,pasajeros:counts.pasajeros,maletas:counts.maletas,
       fechaHora:firebase.firestore.Timestamp.fromDate(fechaHora),fechaTexto:fecha,horaTexto:hora,
-      estado:'pendiente',creadoEn:firebase.firestore.FieldValue.serverTimestamp()};
+      estado:'pendiente',privacidad:PRIV_VERSION,creadoEn:firebase.firestore.FieldValue.serverTimestamp()};
     if(notas)data.notas=notas;
     if(u){data.clienteUid=u.uid;if(!u.isAnonymous&&u.email)data.clienteCuenta=u.email;}
     const nuevaRef=await fdb.collection('reservas').add(data);
+    try{localStorage.setItem('mr-priv',PRIV_VERSION);}catch(e){}
     avisar('nueva',nuevaRef.id);
     try{localStorage.setItem('mr-cliente',JSON.stringify({nombre,telefono}));}catch(e){}
     if(!habitual||$('habitChk').checked)await guardarHabitual(origen);

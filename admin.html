@@ -149,9 +149,27 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <select id="meAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="90">1 h 30 min antes</option><option value="120">2 horas antes</option><option value="180">3 horas antes</option><option value="240">4 horas antes</option></select></div>
   <button class="btn" type="button" id="gBtn" hidden style="width:100%;margin-bottom:12px">Conectar Google Calendar</button>
   <button class="btn" type="button" id="colBtn" style="width:100%;margin-bottom:12px">Colaboradores</button>
+  <button class="btn" type="button" id="legalBtn" style="width:100%;margin-bottom:12px">Datos legales (privacidad)</button>
   <div class="actions">
     <button class="submit" type="button" id="meSave">Guardar</button>
     <button class="btn" type="button" id="meClose">Cerrar</button>
+  </div>
+</dialog>
+
+<dialog id="legalDlg">
+  <h2>Datos legales</h2>
+  <p class="sub" style="margin:0 0 12px">Aparecen en la política de privacidad que ven tus clientes al reservar. Consulta con tu gestor que sean correctos.</p>
+  <div class="field"><label for="lgNombre">Nombre completo o empresa</label><input type="text" id="lgNombre" autocomplete="off"></div>
+  <div class="grid2">
+    <div class="field"><label for="lgNif">NIF</label><input type="text" id="lgNif" autocomplete="off"></div>
+    <div class="field"><label for="lgMeses">Guardar reservas (meses)</label><input type="number" id="lgMeses" min="1" max="120" inputmode="numeric"></div>
+  </div>
+  <div class="field"><label for="lgDir">Dirección</label><input type="text" id="lgDir" autocomplete="off"></div>
+  <div class="field"><label for="lgEmail">Correo para solicitudes de datos</label><input type="email" id="lgEmail" autocomplete="off"></div>
+  <div class="error" id="lgErr"></div>
+  <div class="actions">
+    <button class="submit" type="button" id="lgSave">Guardar</button>
+    <button class="btn" type="button" id="lgClose">Cerrar</button>
   </div>
 </dialog>
 
@@ -845,6 +863,19 @@ function colForm(c){
   $('colComTipo').value=c?c.comisionTipo||'ninguna':'ninguna';$('colComVal').value=c&&c.comisionValor?String(c.comisionValor).replace('.',','):'';
   $('colErr').textContent='';
 }
+$('legalBtn').onclick=async()=>{
+  $('meDlg').close();$('lgErr').textContent='';
+  let d={};try{const x=await fdb.collection('ajustes').doc('legal').get();d=x.exists?x.data():{};}catch(e){}
+  $('lgNombre').value=d.nombre||'';$('lgNif').value=d.nif||'';$('lgDir').value=d.direccion||'';$('lgEmail').value=d.email||'';$('lgMeses').value=d.meses||12;
+  $('legalDlg').showModal();
+};
+$('lgClose').onclick=()=>$('legalDlg').close();
+$('lgSave').onclick=async()=>{
+  const d={nombre:$('lgNombre').value.trim(),nif:$('lgNif').value.trim().toUpperCase(),direccion:$('lgDir').value.trim(),email:$('lgEmail').value.trim(),meses:Math.min(120,Math.max(1,parseInt($('lgMeses').value,10)||12))};
+  if(!d.nombre||!d.nif||!d.email){$('lgErr').textContent='Rellena al menos el nombre, el NIF y el correo.';return;}
+  try{await fdb.collection('ajustes').doc('legal').set({...d,actualizado:firebase.firestore.FieldValue.serverTimestamp()});$('legalDlg').close();toast('Datos legales guardados. Ya aparecen en la app de clientes.');}
+  catch(err){$('lgErr').textContent='Error: '+(err.code||err.message);}
+};
 $('colBtn').onclick=()=>{$('meDlg').close();colDelArmed=null;renderColabs();colForm(null);$('colDlg').showModal();};
 $('colClose').onclick=()=>$('colDlg').close();
 $('colList').addEventListener('click',async e=>{
