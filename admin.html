@@ -129,6 +129,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <button type="button" data-f="proximas">Próximas</button>
     <button type="button" data-f="mios" id="tabMios" hidden>Míos</button>
     <button type="button" data-f="todas">Todas</button>
+    <button type="button" data-f="realizados">Realizados</button>
     <button type="button" data-f="resumen">Resumen</button>
   </div>
   <input class="search" id="search" type="search" placeholder="Buscar cliente, teléfono, lugar…" hidden>
@@ -612,15 +613,15 @@ function renderResumen(){
   $('mNext').onclick=()=>{resMes.m++;if(resMes.m>11){resMes.m=0;resMes.y++;}render();};
 }
 function render(){
-  $('search').hidden=filter!=='todas';
+  $('search').hidden=filter!=='todas'&&filter!=='realizados';
   if(filter==='resumen'){renderResumen();return;}
   const now=Date.now(), s=new Date();s.setHours(0,0,0,0);const e=new Date(s.getTime()+86400000);
   let items=all;
-  const vis=all.filter(r=>!r.ocultoAdmin);
+  const vis=all.filter(r=>!r.ocultoAdmin&&(filter==='realizados'||r.estado!=='realizada'));
   if(filter==='hoy')items=vis.filter(r=>ms(r)>=s.getTime()&&ms(r)<e.getTime()&&r.estado!=='cancelada');
   else if(filter==='proximas')items=vis.filter(r=>ms(r)>=now-3600000&&r.estado!=='cancelada');
   else if(filter==='mios')items=vis.filter(r=>r.asignadoA===yo().uid&&ms(r)>=now-3600000&&r.estado!=='cancelada');
-  else{items=(verOcultos?all.filter(r=>r.ocultoAdmin):vis).slice().sort((a,b)=>ms(b)-ms(a));
+  else{items=(filter==='realizados'?all.filter(r=>r.estado==='realizada'&&(verOcultos?r.ocultoAdmin:!r.ocultoAdmin)):verOcultos?all.filter(r=>r.ocultoAdmin):vis).slice().sort((a,b)=>ms(b)-ms(a));
     const q=$('search').value.trim().toLowerCase(),qd=q.replace(/\D/g,'');
     if(q)items=items.filter(r=>{const txt=[r.nombre,r.clienteCuenta,r.origen,r.destino,r.codigo,r.notas].join(' ').toLowerCase();
       const tel=String(r.telefono||'').replace(/\D/g,'');return txt.includes(q)||(qd.length>=3&&tel.includes(qd));});}
@@ -629,18 +630,24 @@ function render(){
   const pend=all.filter(r=>r.estado==='pendiente'&&ms(r)>=now-3600000).length;
   $('summary').innerHTML=pend?'<b>'+pend+' pendiente'+(pend===1?'':'s')+'</b>':items.length+' reserva'+(items.length===1?'':'s');
   const nOcultos=all.filter(r=>r.ocultoAdmin).length;
-  const btnOcultos=(filter==='todas'&&nOcultos)?'<button type="button" class="bulk" id="toggleOcultos" style="color:var(--muted)">'+(verOcultos?'Volver a la lista normal':'Ver servicios quitados de la lista ('+nOcultos+')')+'</button>':'';
-  if(!items.length){$('list').innerHTML=btnOcultos+'<p class="empty">No hay reservas en este rango.</p>';return;}
+  const nOcultosR=all.filter(r=>r.ocultoAdmin&&r.estado==='realizada').length;
+  const btnOcultos=((filter==='todas'&&nOcultos)||(filter==='realizados'&&nOcultosR))?'<button type="button" class="bulk" id="toggleOcultos" style="color:var(--muted)">'+(verOcultos?'Volver a la lista normal':'Ver servicios quitados de la lista ('+(filter==='realizados'?nOcultosR:nOcultos)+')')+'</button>':'';
+  if(!items.length){$('list').innerHTML=btnOcultos+'<p class="empty">'+(filter==='realizados'?'Aquí irán los servicios realizados, agrupados por mes.':'No hay reservas en este rango.')+'</p>';return;}
   let html=btnOcultos,cur='';
   if(filter==='todas'&&!verOcultos&&!$('search').value.trim()){
     const nc=all.filter(r=>r.estado==='cancelada').length;
     if(nc)html+='<button type="button" class="bulk" id="bulkDel">'+(bulkArmed?'Pulsa otra vez para eliminar las '+nc+' canceladas':'Eliminar las '+nc+' reservas canceladas')+'</button>';
   }
+  const porMes={};
+  if(filter==='realizados')for(const r of items){const d=new Date(ms(r));const k=d.getFullYear()+'-'+d.getMonth();(porMes[k]=porMes[k]||{n:0,imp:0});porMes[k].n++;if(typeof r.importe==='number')porMes[k].imp+=r.importe;}
   for(const r of items){
-    const l=dayLabel(ms(r));if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}
+    let l;
+    if(filter==='realizados'){const d=new Date(ms(r));const k=d.getFullYear()+'-'+d.getMonth();const m=d.toLocaleDateString('es-ES',{month:'long',year:'numeric'});l=m+' · '+porMes[k].n+(porMes[k].n===1?' servicio':' servicios')+(porMes[k].imp?' · '+eur(porMes[k].imp):'');}
+    else l=dayLabel(ms(r));
+    if(l!==cur){cur=l;html+='<div class="day">'+esc(l)+'</div>';}
     const cc=colorCliente(r);
     html+='<button type="button" class="row '+esc(r.estado)+(cc?' cc':'')+'"'+(cc?' style="--cc:'+esc(cc)+'"':'')+' data-id="'+esc(r.id)+'">'+
-      '<span class="t">'+esc(r.horaTexto)+'</span>'+
+      '<span class="t">'+(filter==='realizados'?'<small style="display:block;font-size:.72rem;color:var(--muted);font-weight:600">'+esc((r.fechaTexto||'').split('-').reverse().slice(0,2).join('/'))+'</small>':'')+esc(r.horaTexto)+'</span>'+
       '<span class="r"><div>'+esc(r.origen)+' → '+esc(r.destino)+'</div>'+
       '<div class="m">'+[r.nombre,r.pasajeros+' pax',r.maletas?r.maletas+' mal.':''].filter(Boolean).map(esc).join(', ')+'</div>'+
       (r.modificada&&r.estado==='pendiente'?'<span class="tag" style="color:var(--amber);border-color:currentColor">✏️ modificada</span>':'')+
