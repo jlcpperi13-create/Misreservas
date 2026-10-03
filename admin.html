@@ -425,6 +425,7 @@ async function enviarPos(p){
       taxi:seg.taxi||'',conductor:seg.conductor||'',lat:pos.lat,lng:pos.lng,precision:Math.round(p.coords.accuracy||0),
       recogida:seg.recogida||null,distKm,etaMin,etaTs:etaMin!=null?Date.now()+etaMin*60000:null,
       activo:true,inicio:seg.inicio,ts:firebase.firestore.FieldValue.serverTimestamp()});
+    if(seg&&!seg.avisado&&seg.clienteUid){seg.avisado=true;avisar('encamino',seg.id);}
   }catch(e){console.warn('ubicación',e);}
 }
 function pararSeg(silencioso){
@@ -960,6 +961,7 @@ $('btnConfirm').onclick=async()=>{
       taxi:$('aTaxi').value.trim(),conductor:$('aConductor').value.trim(),notaCliente:$('aNota').value.trim(),
       actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()
     });
+    if(selected&&selected.clienteUid)avisar('cliente',selected.id);
     $('sheet').close();selected=null;toast(calFail?'Guardado, pero no en Google Calendar. Ábrelo y pulsa Guardar para reintentar.':'Guardado. El cliente ya lo ve.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
   finally{$('btnConfirm').disabled=false;}
@@ -974,6 +976,7 @@ $('btnCancel').onclick=async()=>{
     b.update(fdb.collection('reservas').doc(selected.id),{estado:'cancelada',notaCliente:$('aNota').value.trim(),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp(),...(selected.colaboradorUid?{cesion:'cancelado'}:{})});
     if(selected.colaboradorUid&&cesiones[selected.id])b.update(fdb.collection('cesiones').doc(selected.id),{estado:'cancelado'});
     await b.commit();
+    if(selected&&selected.clienteUid)avisar('cliente',selected.id);
     $('sheet').close();selected=null;toast('Reserva cancelada.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
 };

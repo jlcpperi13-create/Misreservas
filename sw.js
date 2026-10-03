@@ -1,6 +1,6 @@
 // Service worker de MisReservas
 // Cada vez que subas cambios, sube también este número (v1 -> v2 -> v3...)
-const CACHE = 'misreservas-v19';
+const CACHE = 'misreservas-v20';
 const ARCHIVOS = ['./', './index.html', './admin.html', './firebase-config.js',
   './manifest.json', './manifest-panel.json', './colaborador.html', './manifest-colab.json', './colab-192.png', './colab-512.png',
   './cliente-192.png', './cliente-512.png', './panel-192.png', './panel-512.png'];
@@ -31,7 +31,7 @@ self.addEventListener('push', e => {
   try { const p = e.data ? e.data.json() : {}; d = p.data || p.notification || p; }
   catch (err) { d = { title: 'MisReservas', body: e.data ? e.data.text() : '' }; }
   const link = d.link || './admin.html';
-  const icono = link.includes('colaborador') ? 'colab-192.png' : 'panel-192.png';
+  const icono = link.includes('colaborador') ? 'colab-192.png' : link.includes('admin') ? 'panel-192.png' : 'cliente-192.png';
   e.waitUntil(self.registration.showNotification(d.title || 'MisReservas', {
     body: d.body || '', icon: icono, badge: icono, tag: d.tag || undefined, renotify: true,
     requireInteraction: true, vibrate: [300, 150, 300], data: { link }

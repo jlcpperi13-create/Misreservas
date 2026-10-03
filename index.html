@@ -37,6 +37,8 @@ textarea{min-height:70px;resize:vertical}
 .error{color:var(--bad);min-height:1.3em;margin:6px 0 10px}
 .submit{width:100%;background:var(--amber);color:var(--amber-ink);border:0;border-radius:6px;padding:15px;font:inherit;font-weight:700;font-size:1.05rem;cursor:pointer}
 .submit:disabled{opacity:.6}
+.pushbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(232,163,61,.12);border:1px solid rgba(232,163,61,.4);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
+.pushbar button{flex:none;border:0;background:var(--amber);color:var(--amber-ink);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}
 .ghost{width:100%;background:none;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:13px;font:inherit;font-weight:600;cursor:pointer;margin-top:10px}
 .day{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
 .res{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;transition:border-color .3s}
@@ -82,6 +84,7 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
     <button class="acct" id="acctBtn" type="button">Clientes habituales: entrar</button>
   </header>
 
+  <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para saber al momento cuándo se confirma tu reserva y qué taxi va, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
   <div class="tabs">
     <button type="button" id="tabNueva" class="on">Nueva reserva</button>
     <button type="button" id="tabMias">Mis reservas</button>
@@ -163,6 +166,7 @@ dialog p{color:var(--muted);margin:0 0 14px;font-size:.92rem}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="firebase-config.js"></script>
 <script>
@@ -207,6 +211,34 @@ $('habitUse').onclick=()=>{$('origen').value=habitual;pintarHabitual();};
 if(habitual)$('origen').value=habitual;
 setTimeout(pintarHabitual,0);
 
+
+/* ---- avisos push en este dispositivo ---- */
+const VAPID='BKTiB-gWr0wzs5WBioaWW8-KiYss6BKTxK7kCh875JQAAOZeG-qKActPtHfZFvgIOMQF8EgzZUYaa7R-FWD-4oU';
+const appFb=firebase.app();
+const pushKey=()=>'mr-push-'+(fauth.currentUser?fauth.currentUser.uid:'');
+function pushSoportado(){try{return 'Notification' in window&&'serviceWorker' in navigator&&'PushManager' in window&&firebase.messaging.isSupported();}catch(e){return false;}}
+function pintarPushBar(){
+  const bar=$('pushBar');if(!bar)return;
+  let on=false;try{on=localStorage.getItem(pushKey())==='1'&&Notification.permission==='granted';}catch(e){}
+  bar.hidden=!fauth.currentUser||on||!pushSoportado();
+}
+async function activarAvisos(interactivo){
+  if(!fauth.currentUser)return false;
+  if(!pushSoportado()){if(interactivo)toast('Este navegador no admite avisos. Prueba con Chrome.');return false;}
+  try{
+    if(interactivo){const p=await Notification.requestPermission();if(p!=='granted'){toast('Sin permiso de avisos. Actívalo en los ajustes de notificaciones.');return false;}}
+    else if(Notification.permission!=='granted')return false;
+    const reg=await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready;
+    const tok=await appFb.messaging().getToken({vapidKey:VAPID,serviceWorkerRegistration:reg});
+    if(!tok)throw new Error('sin token');
+    await fdb.collection('tokens').doc(tok).set({uid:fauth.currentUser.uid,app:'cliente',dispositivo:navigator.userAgent.slice(0,120),actualizado:firebase.firestore.FieldValue.serverTimestamp()});
+    try{localStorage.setItem(pushKey(),'1');}catch(e){}
+    pintarPushBar();
+    if(interactivo)toast('Avisos activados en este dispositivo.');
+    return true;
+  }catch(e){console.warn(e);if(interactivo)toast('No se pudieron activar los avisos ('+(e.code||e.message)+').');return false;}
+}
+$('pushBtn').onclick=()=>activarAvisos(true);
 /* ---- valores iniciales ---- */
 (function initForm(){
   const d=new Date(Date.now()+60*60000); d.setMinutes(0,0,0);
@@ -270,6 +302,7 @@ fauth.onAuthStateChanged(u=>{
     try{history.replaceState(null,'',location.pathname);}catch(e){}
   }
   renderAcct(u);
+  pintarPushBar();if(u)activarAvisos(false);
   cargarHabitual(u);
   if(unsub){unsub();unsub=null;}
   if(unsubUb){unsubUb();unsubUb=null;}ubic={};pintarSeguimiento();
