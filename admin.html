@@ -101,6 +101,16 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
 .segbar button{flex:none;border:1px solid currentColor;background:none;color:inherit;border-radius:8px;padding:7px 11px;font:inherit;font-weight:700;cursor:pointer}
 .tag.camino{color:#9FE3C1;border-color:currentColor}
 .tag.own{color:var(--amber);border-color:currentColor}
+.tag.de{color:#8FB8FF;border-color:currentColor}
+.pases{margin-bottom:12px}
+.pases .ptit{color:#8FB8FF;font-weight:700;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:4px 0 8px}
+.pcard{background:var(--card);border:1px solid #8FB8FF;border-radius:10px;padding:12px;margin-bottom:8px}
+.pcard .pt{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pcard .ph{font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.pcard .pd{color:var(--muted);font-size:.88rem}
+.pcard .pr{margin-top:4px;overflow-wrap:anywhere}
+.pcard .pa{display:flex;gap:8px;margin-top:10px}
+.pcard .pa .acc{background:#8FB8FF;color:#071A3A;border-color:transparent}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--amber);color:var(--amber-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
 </head>
@@ -124,6 +134,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
   </header>
   <div class="segbar" id="segBar" hidden><span id="segTxt"></span><button type="button" id="segStop">Parar</button></div>
   <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte de las reservas con la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
+  <div class="pases" id="pases" hidden></div>
   <div class="tabs">
     <button type="button" data-f="hoy" class="on">Hoy</button>
     <button type="button" data-f="proximas">Próximas</button>
@@ -299,7 +310,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const CESION={ofrecido:'sin responder',aceptado:'aceptado',rechazado:'rechazado',devuelto:'devuelto',hecho:'hecho',cancelado:'cancelado'};
 const ESTADO={pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada',realizada:'Realizada'};
-let colabs=[], cesiones={}, unsubC=null, unsubS=null, retArmed=false, colDelArmed=null;
+let colabs=[], cesiones={}, pases=[], pasesKnown=null, paseRejArmed=null, paseBusy={}, unsubPa=null, unsubC=null, unsubS=null, retArmed=false, colDelArmed=null;
 let verOcultos=false, delArmed=false, bulkArmed=false, all=[], filter='hoy', unsub=null, selected=null, known=null, audioCtx=null, cancelArmed=false;
 
 function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,7000);}
@@ -502,7 +513,7 @@ function asignacion(){const u=yo();return u?{asignadoA:u.uid,asignadoEmail:u.ema
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(u=>{
   if(u&&!u.isAnonymous){$('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;pintarMeBtn();initGoogle();subscribe();pintarPushBar();activarAvisos(false);reanudarSeg();}
-  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}if(unsubU){unsubU();unsubU=null;}if(unsubCol){unsubCol();unsubCol=null;}known=null;}
+  else{$('appView').hidden=true;$('fab').hidden=true;$('loginView').hidden=false;if(unsub){unsub();unsub=null;}if(unsubC){unsubC();unsubC=null;}if(unsubS){unsubS();unsubS=null;}if(unsubPa){unsubPa();unsubPa=null;}pases=[];pasesKnown=null;if(unsubU){unsubU();unsubU=null;}if(unsubCol){unsubCol();unsubCol=null;}known=null;}
 });
 $('loginBtn').onclick=async()=>{
   unlockAudio();
@@ -527,6 +538,19 @@ function subscribeExtra(){
   unsubC=fdb.collection('colaboradores').onSnapshot(s=>{
     colabs=s.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'','es'));
     if($('colDlg').open)renderColabs();
+  },()=>{});
+  if(unsubPa)unsubPa();
+  unsubPa=fdb.collection('pases').onSnapshot(s=>{
+    pases=s.docs.map(d=>({id:d.id,...d.data(),_pend:d.metadata.hasPendingWrites}));
+    if(pasesKnown){
+      const nuevo=pases.find(x=>x.estado==='ofrecido'&&pasesKnown.get(x.id)!=='ofrecido');
+      if(nuevo){beep();try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}
+        toast((nuevo.colaboradorNombre||'Un colaborador')+' te pasa un servicio: '+nuevo.horaTexto+' '+nuevo.origen);}
+    }
+    pasesKnown=new Map(pases.map(x=>[x.id,x.estado]));
+    // Si una aceptación se quedó a medias (sin conexión, etc.), se termina sola
+    pases.filter(x=>x.estado==='aceptado'&&!x.reservaId&&!x._pend&&!paseBusy[x.id]).forEach(x=>terminarPase(x).catch(e=>console.warn('pase',e)));
+    renderPases();
   },()=>{});
   if(unsubS)unsubS();
   unsubS=fdb.collection('cesiones').onSnapshot(s=>{
@@ -671,6 +695,7 @@ function render(){
       (r.modificada&&r.estado==='pendiente'?'<span class="tag" style="color:var(--amber);border-color:currentColor">✏️ modificada</span>':'')+
       (ubicActiva(r.id)?'<span class="tag camino">📍 en camino</span>':'')+
       (r.fuente==='propio'?'<span class="tag own">Propio</span>':'')+
+      (r.fuente==='colaborador'?'<span class="tag de">De '+esc(r.deColaboradorNombre||'colaborador')+'</span>':'')+
       (typeof r.importe==='number'?'<span class="tag">'+esc(eur(r.importe))+'</span>':'')+
       (r.clienteCuenta?'<span class="tag">'+esc(r.clienteCuenta)+'</span>':'')+
       (r.taxi?'<span class="tag taxi">Taxi '+esc(r.taxi)+'</span>':'')+
@@ -689,6 +714,71 @@ $('list').addEventListener('click',e=>{
   const c=e.target.closest('.crow');
   if(c){filter='todas';document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.f==='todas'));$('search').value=c.dataset.q||'';render();window.scrollTo(0,0);return;}
   const b=e.target.closest('.row');if(!b)return;const r=all.find(x=>x.id===b.dataset.id);if(r)openSheet(r);});
+
+/* ---- servicios que te pasan los colaboradores ---- */
+function renderPases(){
+  const box=$('pases');if(!box)return;
+  const lim=Date.now()-3*3600000;
+  const lista=pases.filter(x=>x.estado==='ofrecido'&&ms(x)>=lim).sort((a,b)=>ms(a)-ms(b));
+  box.hidden=!lista.length;
+  if(!lista.length){box.innerHTML='';return;}
+  box.innerHTML='<div class="ptit">Te pasan '+(lista.length===1?'un servicio':lista.length+' servicios')+'</div>'+lista.map(x=>
+    '<div class="pcard"><div class="pt"><span class="ph">'+esc(x.horaTexto)+'</span><span class="pd">'+esc(dayLabel(ms(x)))+'</span></div>'+
+    '<div class="pr">'+esc(x.origen)+' → '+esc(x.destino)+'</div>'+
+    '<div class="pd">'+esc((x.pasajeros||1)+' pax'+(x.maletas?', '+x.maletas+' maletas':''))+' · De '+esc(x.colaboradorNombre||'colaborador')+(x.colaboradorTaxi?' (Taxi '+esc(x.colaboradorTaxi)+')':'')+'</div>'+
+    '<div class="pd">Los datos del cliente aparecen al aceptar.</div>'+
+    '<div class="pa"><button type="button" class="btn acc" data-pacc="'+esc(x.id)+'"'+(paseBusy[x.id]?' disabled':'')+'>Aceptar</button>'+
+    '<button type="button" class="btn bad" data-prej="'+esc(x.id)+'"'+(paseBusy[x.id]?' disabled':'')+'>'+(paseRejArmed===x.id?'¿Seguro?':'Rechazar')+'</button></div></div>').join('');
+}
+async function terminarPase(x){
+  if(paseBusy['fin-'+x.id])return;paseBusy['fin-'+x.id]=true;
+  try{
+    // Los datos del cliente solo se pueden leer una vez aceptado
+    const pd=await fdb.collection('pases').doc(x.id).collection('privado').doc('cliente').get({source:'server'});
+    const c=pd.exists?pd.data():{};
+    const t=miTaxi();
+    const data={
+      fechaTexto:x.fechaTexto||'',horaTexto:x.horaTexto||'',fechaHora:x.fechaHora,
+      origen:x.origen||'',destino:x.destino||'',nombre:c.nombre||'',telefono:c.telefono||'',notas:c.notas||'',
+      pasajeros:x.pasajeros||1,maletas:x.maletas||0,importe:typeof c.importe==='number'?c.importe:null,
+      aviso:t.aviso==null?30:t.aviso,
+      codigo:'C'+Math.random().toString(36).slice(2,7).toUpperCase(),
+      estado:'confirmada',fuente:'colaborador',deColaboradorUid:x.colaboradorUid||'',deColaboradorNombre:x.colaboradorNombre||'',
+      taxi:t.taxi||'',conductor:t.nombre||'',notaCliente:'',...asignacion(),
+      creadoEn:firebase.firestore.FieldValue.serverTimestamp()};
+    if(gConnected()){try{data.gcalId=await syncEvent(data);}catch(e){}}
+    const b=fdb.batch();
+    b.set(fdb.collection('reservas').doc(x.id),data);
+    b.update(fdb.collection('pases').doc(x.id),{reservaId:x.id});
+    b.update(fdb.collection('propiosColab').doc(x.id),{pase:'aceptado'});
+    await b.commit();
+  }finally{delete paseBusy['fin-'+x.id];}
+}
+$('pases').addEventListener('click',async e=>{
+  const a=e.target.closest('[data-pacc]'),r=e.target.closest('[data-prej]');
+  if(!a&&!r)return;
+  unlockAudio();
+  const id=(a||r).dataset.pacc||(a||r).dataset.prej;
+  const x=pases.find(p=>p.id===id);if(!x)return;
+  if(r&&paseRejArmed!==id){paseRejArmed=id;renderPases();return;}
+  paseRejArmed=null;paseBusy[id]=true;renderPases();
+  try{
+    if(a){
+      await fdb.collection('pases').doc(id).update({estado:'aceptado',respondidoEn:firebase.firestore.FieldValue.serverTimestamp()});
+      await terminarPase({...x,estado:'aceptado'});
+      avisar('paseResp',id);
+      toast('Aceptado. Ya está en tu lista con los datos del cliente.');
+    }else{
+      const b=fdb.batch();
+      b.update(fdb.collection('pases').doc(id),{estado:'rechazado',respondidoEn:firebase.firestore.FieldValue.serverTimestamp()});
+      b.update(fdb.collection('propiosColab').doc(id),{pase:'rechazado'});
+      await b.commit();
+      avisar('paseResp',id);
+      toast('Rechazado. Vuelve al colaborador.');
+    }
+  }catch(err){toast('Error: '+(err.code||err.message));}
+  finally{delete paseBusy[id];renderPases();}
+});
 
 /* ---- ficha de reserva ---- */
 function openSheet(r){

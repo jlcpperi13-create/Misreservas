@@ -55,6 +55,8 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .pill.rechazado{background:rgba(152,162,176,.18);color:var(--muted)}
 .empty{color:var(--muted);text-align:center;padding:26px 10px}
 .pill.propio{background:rgba(232,163,61,.18);color:var(--warn)}
+.pill.pase{background:rgba(111,160,245,.18);color:var(--acc)}
+.nota{margin-top:8px;font-size:.88rem;color:var(--warn)}
 select,textarea{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:12px 13px;font:inherit;min-height:48px}
 textarea{min-height:64px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -133,7 +135,7 @@ const fauth=appFb.auth(), fdb=appFb.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ts=()=>firebase.firestore.FieldValue.serverTimestamp();
-let me=null, items=[], propios=[], unsubP=null, editing=null, delArmed=false, privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
+let me=null, items=[], propios=[], unsubP=null, editing=null, delArmed=false, paseArmed=null, pasePrev=null, privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
 
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,5000);}
 function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
@@ -245,7 +247,7 @@ function pintarSegBar(){
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(async u=>{
   if(unsub){unsub();unsub=null;}
-  if(unsubP){unsubP();unsubP=null;}propios=[];
+  if(unsubP){unsubP();unsubP=null;}propios=[];pasePrev=null;
   if(!u||u.isAnonymous){$('fab').hidden=true;$('appView').hidden=true;$('loginView').hidden=false;return;}
   try{
     const d=await fdb.collection('colaboradores').doc(u.uid).get();
@@ -272,7 +274,14 @@ fauth.onAuthStateChanged(async u=>{
     cargarPrivados();render();
   },e=>{$('list').innerHTML='<p class="empty">No se pudieron cargar los servicios ('+esc(e.code||e.message)+').</p>';});
   unsubP=fdb.collection('propiosColab').where('uid','==',u.uid).onSnapshot(s=>{
-    propios=s.docs.map(d=>({id:d.id,...d.data(),_own:true}));render();
+    propios=s.docs.map(d=>({id:d.id,...d.data(),_own:true}));
+    if(pasePrev){
+      const ch=propios.find(x=>(x.pase==='aceptado'||x.pase==='rechazado')&&pasePrev[x.id]==='ofrecido');
+      if(ch){beep();try{navigator.vibrate&&navigator.vibrate([300,150,300]);}catch(e){}
+        toast(ch.pase==='aceptado'?'El taxista ha aceptado tu servicio de las '+ch.horaTexto+'.':'El taxista no puede hacer tu servicio de las '+ch.horaTexto+'. Vuelve a ser tuyo.');}
+    }
+    pasePrev={};propios.forEach(x=>{pasePrev[x.id]=x.pase||'';});
+    render();
   },e=>{console.warn('propios',e);toast('No se pudieron cargar tus servicios ('+(e.code||e.message)+').');});
 });
 $('lBtn').onclick=async()=>{
@@ -350,13 +359,19 @@ function cardPropio(x){
   const hecho=x.estado==='realizada';
   let h='<div class="card'+(hecho?' old':'')+'"><div class="top"><span class="when">'+esc(x.horaTexto)+'</span><span class="day">'+esc(dia(ms(x)))+'</span></div>'+
     '<div class="route">'+esc(x.origen)+' → '+esc(x.destino)+'</div><div class="meta"><span class="pill propio">Propio</span> '+esc(pax)+(!hecho&&+x.aviso?' · 🔔 '+esc(+x.aviso>=60?(x.aviso/60).toLocaleString('es-ES')+' h':x.aviso+' min')+' antes':'')+'</div>';
+  if(x.pase==='rechazado')h+='<div class="nota">↩️ El taxista no lo ha aceptado: sigue siendo tuyo.</div>';
+  if(x.pase==='aceptado'){
+    return h+'<div class="row"><span class="pill pase">Pasado al taxista · aceptado</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div></div>';
+  }
   if(x.nombre||x.telefono||x.notas)h+='<div class="cli">'+(x.nombre?'<b>'+esc(x.nombre)+'</b>':'')+(x.telefono?'<div>'+esc(x.telefono)+'</div>':'')+(x.notas?'<div>'+esc(x.notas)+'</div>':'')+'</div>';
   if(!hecho){
     const tel=String(x.telefono||'').replace(/[^\d+]/g,'');
     h+='<div class="imp"><input type="text" inputmode="decimal" placeholder="Importe cobrado (€)" id="pimp-'+esc(x.id)+'" value="'+(typeof x.importe==='number'?esc(String(x.importe).replace('.',',')):'')+'"><button class="b ok" data-pdone="'+esc(x.id)+'">Hecho</button></div>'+
       (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'')+
       '<div class="row"><a class="b" href="'+esc(mapsIr(x.origen))+'" target="_blank" rel="noopener">Ir a la recogida</a><a class="b" href="'+esc(mapsRuta(x.origen,x.destino))+'" target="_blank" rel="noopener">Ver recorrido</a></div>'+
-      '<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button></div>';
+      (x.pase==='ofrecido'
+        ?'<div class="row"><span class="pill pase">Pasado al taxista · esperando respuesta</span></div><div class="row"><button class="b bad" data-pret="'+esc(x.id)+'">Retirar (no pasárselo)</button></div>'
+        :'<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button><button class="b" data-ppase="'+esc(x.id)+'" style="color:var(--acc);border-color:var(--acc)">'+(paseArmed===x.id?'¿Pasárselo? Pulsa otra vez':'🔁 Pasar al taxista')+'</button></div>');
   }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   return h+'</div>';
 }
@@ -364,14 +379,14 @@ function pintar(x,tipo){return x._own?cardPropio(x):card(x,tipo);}
 function render(){
   const now=Date.now()-3*3600000;
   const nuevos=items.filter(x=>x.estado==='ofrecido').sort((a,b)=>ms(a)-ms(b));
-  const acept=items.filter(x=>x.estado==='aceptado').concat(propios.filter(x=>x.estado!=='realizada')).sort((a,b)=>ms(a)-ms(b));
+  const acept=items.filter(x=>x.estado==='aceptado').concat(propios.filter(x=>x.estado!=='realizada'&&x.pase!=='aceptado')).sort((a,b)=>ms(a)-ms(b));
   const avisos=items.filter(x=>x.estado==='cancelado'&&!x.ocultoColab&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
-  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).concat(propios.filter(x=>x.estado==='realizada'&&!x.oculto)).sort((a,b)=>ms(b)-ms(a)).slice(0,15);
+  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).concat(propios.filter(x=>(x.estado==='realizada'||x.pase==='aceptado')&&!x.oculto)).sort((a,b)=>ms(b)-ms(a)).slice(0,15);
   let h='';
   if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
   if(acept.length)h+='<div class="sec">Próximos servicios</div>'+acept.map(x=>pintar(x,'')).join('');
   if(avisos.length)h+='<div class="sec">Cancelados</div>'+avisos.map(x=>card(x,'old')).join('');
-  if(hechos.length)h+='<div class="sec">Hechos</div>'+hechos.map(x=>pintar(x,'old')).join('');
+  if(hechos.length)h+='<div class="sec">Hechos y pasados</div>'+hechos.map(x=>pintar(x,'old')).join('');
   $('list').innerHTML=h||'<p class="empty">No tienes servicios. Cuando te pasen uno, sonará un aviso. También puedes añadir los tuyos con el botón de abajo.</p>';
 }
 
@@ -391,6 +406,26 @@ async function responder(x,estado,extra){
 $('list').addEventListener('click',async e=>{
   const pe=e.target.closest('[data-pedit]'),pd=e.target.closest('[data-pdone]'),ph=e.target.closest('[data-phide]');
   if(pe){abrirNuevo(propios.find(x=>x.id===pe.dataset.pedit));return;}
+  const pp=e.target.closest('[data-ppase]'),pr=e.target.closest('[data-pret]');
+  if(pp){
+    const x=propios.find(i=>i.id===pp.dataset.ppase);if(!x)return;
+    if(paseArmed!==x.id){paseArmed=x.id;render();return;}
+    paseArmed=null;pp.disabled=true;
+    try{await pasarAlTaxista(x);toast('Pasado al taxista. Te avisará cuando lo acepte o no.');}
+    catch(err){toast('Error: '+(err.code||err.message));render();}
+    return;
+  }
+  if(pr){
+    const x=propios.find(i=>i.id===pr.dataset.pret);if(!x)return;
+    pr.disabled=true;
+    try{
+      const ref=fdb.collection('pases').doc(x.id);const b=fdb.batch();
+      b.delete(ref.collection('privado').doc('cliente'));b.delete(ref);
+      b.update(fdb.collection('propiosColab').doc(x.id),{pase:firebase.firestore.FieldValue.delete(),actualizadoEn:ts()});
+      await b.commit();toast('Retirado: vuelve a ser solo tuyo.');
+    }catch(err){toast(err.code==='permission-denied'?'No se puede retirar: puede que el taxista ya lo haya aceptado.':'Error: '+(err.code||err.message));render();}
+    return;
+  }
   if(ph){try{await fdb.collection('propiosColab').doc(ph.dataset.phide).update({oculto:true});toast('Quitado de la lista.');}catch(err){toast('Error: '+(err.code||err.message));}return;}
   if(pd){
     const x=propios.find(i=>i.id===pd.dataset.pdone);if(!x)return;
@@ -467,10 +502,22 @@ function abrirNuevo(r){
   $('nError').textContent='';
   $('newDlg').showModal();
 }
+async function pasarAlTaxista(x){
+  const ref=fdb.collection('pases').doc(x.id);const b=fdb.batch();
+  b.set(ref,{colaboradorUid:fauth.currentUser.uid,colaboradorNombre:me.nombre||'',colaboradorTaxi:me.taxi||'',
+    fechaTexto:x.fechaTexto||'',horaTexto:x.horaTexto||'',fechaHora:x.fechaHora,origen:x.origen||'',destino:x.destino||'',
+    pasajeros:x.pasajeros||1,maletas:x.maletas||0,estado:'ofrecido',ofrecidoEn:Date.now(),creadoEn:ts()});
+  // Los datos del cliente van aparte: el taxista solo los puede leer si lo acepta
+  b.set(ref.collection('privado').doc('cliente'),{nombre:x.nombre||'',telefono:x.telefono||'',notas:x.notas||'',importe:typeof x.importe==='number'?x.importe:null});
+  b.update(fdb.collection('propiosColab').doc(x.id),{pase:'ofrecido',actualizadoEn:ts()});
+  await b.commit();
+  avisar('pase',x.id);
+}
 $('fab').onclick=()=>abrirNuevo();
 $('nClose').onclick=()=>$('newDlg').close();
 $('nDel').onclick=async()=>{
   if(!editing)return;
+  if(editing.pase==='ofrecido'||editing.pase==='aceptado'){$('nError').textContent='Está pasado al taxista. Retíralo antes de borrarlo.';return;}
   if(!delArmed){delArmed=true;$('nDel').textContent='¿Seguro? Pulsa otra vez para borrar';return;}
   $('nDel').disabled=true;
   try{await fdb.collection('propiosColab').doc(editing.id).delete();$('newDlg').close();editing=null;toast('Servicio borrado.');}
