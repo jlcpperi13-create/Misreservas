@@ -278,7 +278,7 @@ fauth.onAuthStateChanged(async u=>{
     if(pasePrev){
       const ch=propios.find(x=>(x.pase==='aceptado'||x.pase==='rechazado')&&pasePrev[x.id]==='ofrecido');
       if(ch){beep();try{navigator.vibrate&&navigator.vibrate([300,150,300]);}catch(e){}
-        toast(ch.pase==='aceptado'?'El taxista ha aceptado tu servicio de las '+ch.horaTexto+'.':'El taxista no puede hacer tu servicio de las '+ch.horaTexto+'. Vuelve a ser tuyo.');}
+        toast(ch.pase==='aceptado'?'Tu compañero ha aceptado tu servicio de las '+ch.horaTexto+'.':'Tu compañero no puede hacer tu servicio de las '+ch.horaTexto+'. Vuelve a ser tuyo.');}
     }
     pasePrev={};propios.forEach(x=>{pasePrev[x.id]=x.pase||'';});
     render();
@@ -359,9 +359,9 @@ function cardPropio(x){
   const hecho=x.estado==='realizada';
   let h='<div class="card'+(hecho?' old':'')+'"><div class="top"><span class="when">'+esc(x.horaTexto)+'</span><span class="day">'+esc(dia(ms(x)))+'</span></div>'+
     '<div class="route">'+esc(x.origen)+' → '+esc(x.destino)+'</div><div class="meta"><span class="pill propio">Propio</span> '+esc(pax)+(!hecho&&+x.aviso?' · 🔔 '+esc(+x.aviso>=60?(x.aviso/60).toLocaleString('es-ES')+' h':x.aviso+' min')+' antes':'')+'</div>';
-  if(x.pase==='rechazado')h+='<div class="nota">↩️ El taxista no lo ha aceptado: sigue siendo tuyo.</div>';
+  if(x.pase==='rechazado')h+='<div class="nota">↩️ Tu compañero no lo ha aceptado: sigue siendo tuyo.</div>';
   if(x.pase==='aceptado'){
-    return h+'<div class="row"><span class="pill pase">Pasado al taxista · aceptado</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div></div>';
+    return h+'<div class="row"><span class="pill pase">Pasado al compañero · aceptado</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div></div>';
   }
   if(x.nombre||x.telefono||x.notas)h+='<div class="cli">'+(x.nombre?'<b>'+esc(x.nombre)+'</b>':'')+(x.telefono?'<div>'+esc(x.telefono)+'</div>':'')+(x.notas?'<div>'+esc(x.notas)+'</div>':'')+'</div>';
   if(!hecho){
@@ -370,8 +370,8 @@ function cardPropio(x){
       (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'')+
       '<div class="row"><a class="b" href="'+esc(mapsIr(x.origen))+'" target="_blank" rel="noopener">Ir a la recogida</a><a class="b" href="'+esc(mapsRuta(x.origen,x.destino))+'" target="_blank" rel="noopener">Ver recorrido</a></div>'+
       (x.pase==='ofrecido'
-        ?'<div class="row"><span class="pill pase">Pasado al taxista · esperando respuesta</span></div><div class="row"><button class="b bad" data-pret="'+esc(x.id)+'">Retirar (no pasárselo)</button></div>'
-        :'<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button><button class="b" data-ppase="'+esc(x.id)+'" style="color:var(--acc);border-color:var(--acc)">'+(paseArmed===x.id?'¿Pasárselo? Pulsa otra vez':'🔁 Pasar al taxista')+'</button></div>');
+        ?'<div class="row"><span class="pill pase">Pasado al compañero · esperando respuesta</span></div><div class="row"><button class="b bad" data-pret="'+esc(x.id)+'">Retirar (no pasárselo)</button></div>'
+        :'<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button><button class="b" data-ppase="'+esc(x.id)+'" style="color:var(--acc);border-color:var(--acc)">'+(paseArmed===x.id?'¿Pasárselo? Pulsa otra vez':'🔁 Pasar al compañero')+'</button></div>');
   }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   return h+'</div>';
 }
@@ -411,7 +411,7 @@ $('list').addEventListener('click',async e=>{
     const x=propios.find(i=>i.id===pp.dataset.ppase);if(!x)return;
     if(paseArmed!==x.id){paseArmed=x.id;render();return;}
     paseArmed=null;pp.disabled=true;
-    try{await pasarAlTaxista(x);toast('Pasado al taxista. Te avisará cuando lo acepte o no.');}
+    try{await pasarAlTaxista(x);toast('Pasado al compañero. Te avisará cuando lo acepte o no.');}
     catch(err){toast('Error: '+(err.code||err.message));render();}
     return;
   }
@@ -423,7 +423,7 @@ $('list').addEventListener('click',async e=>{
       b.delete(ref.collection('privado').doc('cliente'));b.delete(ref);
       b.update(fdb.collection('propiosColab').doc(x.id),{pase:firebase.firestore.FieldValue.delete(),actualizadoEn:ts()});
       await b.commit();toast('Retirado: vuelve a ser solo tuyo.');
-    }catch(err){toast(err.code==='permission-denied'?'No se puede retirar: puede que el taxista ya lo haya aceptado.':'Error: '+(err.code||err.message));render();}
+    }catch(err){toast(err.code==='permission-denied'?'No se puede retirar: puede que tu compañero ya lo haya aceptado.':'Error: '+(err.code||err.message));render();}
     return;
   }
   if(ph){try{await fdb.collection('propiosColab').doc(ph.dataset.phide).update({oculto:true});toast('Quitado de la lista.');}catch(err){toast('Error: '+(err.code||err.message));}return;}
@@ -517,7 +517,7 @@ $('fab').onclick=()=>abrirNuevo();
 $('nClose').onclick=()=>$('newDlg').close();
 $('nDel').onclick=async()=>{
   if(!editing)return;
-  if(editing.pase==='ofrecido'||editing.pase==='aceptado'){$('nError').textContent='Está pasado al taxista. Retíralo antes de borrarlo.';return;}
+  if(editing.pase==='ofrecido'||editing.pase==='aceptado'){$('nError').textContent='Está pasado a tu compañero. Retíralo antes de borrarlo.';return;}
   if(!delArmed){delArmed=true;$('nDel').textContent='¿Seguro? Pulsa otra vez para borrar';return;}
   $('nDel').disabled=true;
   try{await fdb.collection('propiosColab').doc(editing.id).delete();$('newDlg').close();editing=null;toast('Servicio borrado.');}
