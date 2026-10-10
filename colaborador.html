@@ -54,6 +54,17 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .pill.cancelado{background:rgba(240,122,110,.18);color:var(--bad)}
 .pill.rechazado{background:rgba(152,162,176,.18);color:var(--muted)}
 .empty{color:var(--muted);text-align:center;padding:26px 10px}
+.pill.propio{background:rgba(232,163,61,.18);color:var(--warn)}
+select,textarea{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:12px 13px;font:inherit;min-height:48px}
+textarea{min-height:64px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+dialog{border:0;border-radius:16px 16px 0 0;background:var(--card);color:var(--ink);padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));width:100%;max-width:620px;max-height:92vh;overflow:auto;margin:auto auto 0}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 4px;font-size:1.15rem}
+dialog input,dialog select,dialog textarea{background:var(--bg)}
+.acts{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:5;border:0;background:var(--warn);color:#2A1700;font:inherit;font-weight:700;font-size:1.05rem;border-radius:999px;padding:14px 26px;box-shadow:0 6px 20px rgba(0,0,0,.45);cursor:pointer}
+.wrap{padding-bottom:96px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));background:var(--acc);color:var(--acc-ink);padding:11px 16px;border-radius:10px;font-weight:700;max-width:min(92vw,480px);z-index:10;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 </style>
 </head>
@@ -76,9 +87,37 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
   </header>
   <div class="me" id="me"></div>
   <div class="segbar" id="segBar" hidden><span id="segTxt"></span><button type="button" id="segStop">Parar</button></div>
-  <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte cuando te pasen un servicio, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
+  <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte cuando te pasen un servicio y para los recordatorios de tus servicios, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
   <div id="list"><p class="empty">Cargando…</p></div>
 </div>
+<button class="fab" id="fab" type="button" hidden>＋ Añadir servicio</button>
+<dialog id="newDlg">
+  <h2 id="nTitle">Nuevo servicio</h2>
+  <p class="sub" style="margin:0 0 14px">Es tuyo: solo lo ves tú. Sale en tu lista junto a los que te pasan.</p>
+  <div class="grid2">
+    <div class="field"><label for="nFecha">Fecha</label><input type="date" id="nFecha"></div>
+    <div class="field"><label for="nHora">Hora</label><input type="time" id="nHora"></div>
+  </div>
+  <div class="field"><label for="nOrigen">Origen</label><input type="text" id="nOrigen" autocomplete="off"></div>
+  <div class="field"><label for="nDestino">Destino</label><input type="text" id="nDestino" autocomplete="off"></div>
+  <div class="grid2">
+    <div class="field"><label for="nNombre">Cliente (opcional)</label><input type="text" id="nNombre" autocomplete="off"></div>
+    <div class="field"><label for="nTel">Teléfono (opcional)</label><input type="tel" id="nTel" inputmode="tel" autocomplete="off"></div>
+    <div class="field"><label for="nPax">Pasajeros</label><input type="number" id="nPax" min="1" max="8" inputmode="numeric"></div>
+    <div class="field"><label for="nMal">Maletas</label><input type="number" id="nMal" min="0" max="20" inputmode="numeric"></div>
+  </div>
+  <div class="field"><label for="nNotas">Notas (opcional)</label><textarea id="nNotas"></textarea></div>
+  <div class="grid2">
+    <div class="field"><label for="nImporte">Importe (€, opcional)</label><input type="text" id="nImporte" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+    <div class="field"><label for="nAviso">Recordatorio en el móvil</label><select id="nAviso"><option value="0">Sin aviso</option><option value="10">10 min antes</option><option value="15">15 min antes</option><option value="30">30 min antes</option><option value="45">45 min antes</option><option value="60">1 hora antes</option><option value="90">1 h 30 min antes</option><option value="120">2 horas antes</option><option value="180">3 horas antes</option><option value="240">4 horas antes</option></select></div>
+  </div>
+  <div class="error" id="nError"></div>
+  <div class="acts">
+    <button class="submit" type="button" id="nSave">Guardar servicio</button>
+    <button class="b bad" type="button" id="nDel" hidden>Borrar servicio</button>
+    <button class="b" type="button" id="nClose">Cerrar</button>
+  </div>
+</dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -94,7 +133,7 @@ const fauth=appFb.auth(), fdb=appFb.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ts=()=>firebase.firestore.FieldValue.serverTimestamp();
-let me=null, items=[], privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
+let me=null, items=[], propios=[], unsubP=null, editing=null, delArmed=false, privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
 
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,5000);}
 function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
@@ -206,7 +245,8 @@ function pintarSegBar(){
 /* ---- sesión ---- */
 fauth.onAuthStateChanged(async u=>{
   if(unsub){unsub();unsub=null;}
-  if(!u||u.isAnonymous){$('appView').hidden=true;$('loginView').hidden=false;return;}
+  if(unsubP){unsubP();unsubP=null;}propios=[];
+  if(!u||u.isAnonymous){$('fab').hidden=true;$('appView').hidden=true;$('loginView').hidden=false;return;}
   try{
     const d=await fdb.collection('colaboradores').doc(u.uid).get();
     if(!d.exists)throw {code:'no-colab'};
@@ -216,7 +256,7 @@ fauth.onAuthStateChanged(async u=>{
     $('lError').textContent='Esta cuenta no está dada de alta como colaborador.';
     return;
   }
-  $('loginView').hidden=true;$('appView').hidden=false;
+  $('loginView').hidden=true;$('appView').hidden=false;$('fab').hidden=false;
   $('me').textContent=(me.nombre||'')+(me.taxi?' · Taxi '+me.taxi:'');
   pintarPushBar();activarAvisos(false);reanudarSeg();
   known=null;
@@ -231,6 +271,9 @@ fauth.onAuthStateChanged(async u=>{
     known=new Map(items.map(x=>[x.id,x.estado]));
     cargarPrivados();render();
   },e=>{$('list').innerHTML='<p class="empty">No se pudieron cargar los servicios ('+esc(e.code||e.message)+').</p>';});
+  unsubP=fdb.collection('propiosColab').where('uid','==',u.uid).onSnapshot(s=>{
+    propios=s.docs.map(d=>({id:d.id,...d.data(),_own:true}));render();
+  },e=>{console.warn('propios',e);toast('No se pudieron cargar tus servicios ('+(e.code||e.message)+').');});
 });
 $('lBtn').onclick=async()=>{
   unlockAudio();
@@ -302,18 +345,34 @@ function card(x,tipo){
   }
   return h+'</div>';
 }
+function cardPropio(x){
+  const pax=(x.pasajeros||1)+' pax'+(x.maletas?', '+x.maletas+' maletas':'');
+  const hecho=x.estado==='realizada';
+  let h='<div class="card'+(hecho?' old':'')+'"><div class="top"><span class="when">'+esc(x.horaTexto)+'</span><span class="day">'+esc(dia(ms(x)))+'</span></div>'+
+    '<div class="route">'+esc(x.origen)+' → '+esc(x.destino)+'</div><div class="meta"><span class="pill propio">Propio</span> '+esc(pax)+(!hecho&&+x.aviso?' · 🔔 '+esc(+x.aviso>=60?(x.aviso/60).toLocaleString('es-ES')+' h':x.aviso+' min')+' antes':'')+'</div>';
+  if(x.nombre||x.telefono||x.notas)h+='<div class="cli">'+(x.nombre?'<b>'+esc(x.nombre)+'</b>':'')+(x.telefono?'<div>'+esc(x.telefono)+'</div>':'')+(x.notas?'<div>'+esc(x.notas)+'</div>':'')+'</div>';
+  if(!hecho){
+    const tel=String(x.telefono||'').replace(/[^\d+]/g,'');
+    h+='<div class="imp"><input type="text" inputmode="decimal" placeholder="Importe cobrado (€)" id="pimp-'+esc(x.id)+'" value="'+(typeof x.importe==='number'?esc(String(x.importe).replace('.',',')):'')+'"><button class="b ok" data-pdone="'+esc(x.id)+'">Hecho</button></div>'+
+      (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'')+
+      '<div class="row"><a class="b" href="'+esc(mapsIr(x.origen))+'" target="_blank" rel="noopener">Ir a la recogida</a><a class="b" href="'+esc(mapsRuta(x.origen,x.destino))+'" target="_blank" rel="noopener">Ver recorrido</a></div>'+
+      '<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button></div>';
+  }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div>';
+  return h+'</div>';
+}
+function pintar(x,tipo){return x._own?cardPropio(x):card(x,tipo);}
 function render(){
   const now=Date.now()-3*3600000;
   const nuevos=items.filter(x=>x.estado==='ofrecido').sort((a,b)=>ms(a)-ms(b));
-  const acept=items.filter(x=>x.estado==='aceptado').sort((a,b)=>ms(a)-ms(b));
+  const acept=items.filter(x=>x.estado==='aceptado').concat(propios.filter(x=>x.estado!=='realizada')).sort((a,b)=>ms(a)-ms(b));
   const avisos=items.filter(x=>x.estado==='cancelado'&&!x.ocultoColab&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
-  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).sort((a,b)=>ms(b)-ms(a)).slice(0,15);
+  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).concat(propios.filter(x=>x.estado==='realizada'&&!x.oculto)).sort((a,b)=>ms(b)-ms(a)).slice(0,15);
   let h='';
   if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
-  if(acept.length)h+='<div class="sec">Aceptados</div>'+acept.map(x=>card(x,'')).join('');
+  if(acept.length)h+='<div class="sec">Próximos servicios</div>'+acept.map(x=>pintar(x,'')).join('');
   if(avisos.length)h+='<div class="sec">Cancelados</div>'+avisos.map(x=>card(x,'old')).join('');
-  if(hechos.length)h+='<div class="sec">Hechos</div>'+hechos.map(x=>card(x,'old')).join('');
-  $('list').innerHTML=h||'<p class="empty">No tienes servicios. Cuando te pasen uno, sonará un aviso si tienes esta app abierta.</p>';
+  if(hechos.length)h+='<div class="sec">Hechos</div>'+hechos.map(x=>pintar(x,'old')).join('');
+  $('list').innerHTML=h||'<p class="empty">No tienes servicios. Cuando te pasen uno, sonará un aviso. También puedes añadir los tuyos con el botón de abajo.</p>';
 }
 
 /* ---- acciones ---- */
@@ -330,6 +389,18 @@ async function responder(x,estado,extra){
   avisar('cesion',x.reservaId||x.id);
 }
 $('list').addEventListener('click',async e=>{
+  const pe=e.target.closest('[data-pedit]'),pd=e.target.closest('[data-pdone]'),ph=e.target.closest('[data-phide]');
+  if(pe){abrirNuevo(propios.find(x=>x.id===pe.dataset.pedit));return;}
+  if(ph){try{await fdb.collection('propiosColab').doc(ph.dataset.phide).update({oculto:true});toast('Quitado de la lista.');}catch(err){toast('Error: '+(err.code||err.message));}return;}
+  if(pd){
+    const x=propios.find(i=>i.id===pd.dataset.pdone);if(!x)return;
+    const v=String(($('pimp-'+x.id)||{}).value||'').trim();const imp=parseImporte(v);
+    if(v&&imp===null){toast('El importe no es un número válido.');return;}
+    pd.disabled=true;
+    try{await fdb.collection('propiosColab').doc(x.id).update({estado:'realizada',importe:imp,actualizadoEn:ts()});toast('Marcado como hecho.');}
+    catch(err){pd.disabled=false;toast('Error: '+(err.code||err.message));}
+    return;
+  }
   const hd=e.target.closest('[data-hide]');
   if(hd){
     try{await fdb.collection('cesiones').doc(hd.dataset.hide).update({ocultoColab:true});toast('Quitado de la lista.');}
@@ -373,6 +444,68 @@ $('list').addEventListener('click',async e=>{
     }
   }catch(err){toast('Error: '+(err.code||err.message));render();}
 });
+/* ---- servicios propios del colaborador (solo los ve él) ---- */
+const pad2=n=>String(n).padStart(2,'0');
+function parseImporte(v){v=String(v||'').trim().replace(/\s|€/g,'').replace(',','.');if(!v)return null;const n=Math.round(parseFloat(v)*100)/100;return n>=0?n:null;}
+const AVISO_KEY=()=>'mr-aviso-colab-'+(fauth.currentUser?fauth.currentUser.uid:'');
+function avisoDefecto(){try{const v=localStorage.getItem(AVISO_KEY());if(v!=null)return +v;}catch(e){}return 30;}
+function setSelect(el,v){el.value=String(v);if(el.value!==String(v))el.value='30';}
+function abrirNuevo(r){
+  unlockAudio();
+  editing=r||null;delArmed=false;
+  const d=new Date(Date.now()+3600000);d.setMinutes(0,0,0);
+  const v=r||{fechaTexto:d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()),horaTexto:pad2(d.getHours())+':00',pasajeros:1,maletas:0};
+  $('nFecha').value=v.fechaTexto||'';$('nHora').value=v.horaTexto||'';
+  $('nOrigen').value=v.origen||'';$('nDestino').value=v.destino||'';
+  $('nNombre').value=v.nombre||'';$('nTel').value=v.telefono||'';
+  $('nPax').value=v.pasajeros||1;$('nMal').value=v.maletas||0;$('nNotas').value=v.notas||'';
+  $('nImporte').value=typeof v.importe==='number'?String(v.importe).replace('.',','):'';
+  setSelect($('nAviso'),v.aviso==null?avisoDefecto():v.aviso);
+  $('nTitle').textContent=r?'Editar servicio':'Nuevo servicio';
+  $('nSave').textContent=r?'Guardar cambios':'Guardar servicio';
+  $('nDel').hidden=!r;$('nDel').textContent='Borrar servicio';
+  $('nError').textContent='';
+  $('newDlg').showModal();
+}
+$('fab').onclick=()=>abrirNuevo();
+$('nClose').onclick=()=>$('newDlg').close();
+$('nDel').onclick=async()=>{
+  if(!editing)return;
+  if(!delArmed){delArmed=true;$('nDel').textContent='¿Seguro? Pulsa otra vez para borrar';return;}
+  $('nDel').disabled=true;
+  try{await fdb.collection('propiosColab').doc(editing.id).delete();$('newDlg').close();editing=null;toast('Servicio borrado.');}
+  catch(err){$('nError').textContent='Error: '+(err.code||err.message);}
+  finally{$('nDel').disabled=false;}
+};
+$('nSave').onclick=async()=>{
+  const fecha=$('nFecha').value,hora=$('nHora').value,origen=$('nOrigen').value.trim(),destino=$('nDestino').value.trim();
+  if(!fecha||!hora||!origen||!destino){$('nError').textContent='Pon fecha, hora, origen y destino.';return;}
+  const data={
+    fechaTexto:fecha,horaTexto:hora,fechaHora:firebase.firestore.Timestamp.fromDate(new Date(fecha+'T'+hora)),
+    origen,destino,nombre:$('nNombre').value.trim(),telefono:$('nTel').value.trim(),
+    pasajeros:Math.min(8,Math.max(1,parseInt($('nPax').value,10)||1)),
+    maletas:Math.min(20,Math.max(0,parseInt($('nMal').value,10)||0)),
+    notas:$('nNotas').value.trim(),
+    importe:parseImporte($('nImporte').value),aviso:+$('nAviso').value
+  };
+  if($('nImporte').value.trim()&&data.importe===null){$('nError').textContent='El importe no es un número válido.';return;}
+  try{localStorage.setItem(AVISO_KEY(),String(data.aviso));}catch(e){}
+  $('nSave').disabled=true;
+  try{
+    if(editing){
+      // Si cambia la hora o el aviso, el recordatorio vuelve a programarse
+      const cambio=editing.fechaTexto!==data.fechaTexto||editing.horaTexto!==data.horaTexto||(editing.aviso==null?30:+editing.aviso)!==data.aviso;
+      await fdb.collection('propiosColab').doc(editing.id).update({...data,...(cambio?{'avisos.recordatorio':firebase.firestore.FieldValue.delete()}:{}),actualizadoEn:ts()});
+    }else{
+      await fdb.collection('propiosColab').add({...data,uid:fauth.currentUser.uid,estado:'confirmada',
+        taxi:me.taxi||'',conductor:me.nombre||'',creadoEn:ts()});
+    }
+    $('newDlg').close();
+    toast(editing?'Servicio actualizado.':'Servicio guardado.'+(data.aviso&&!(localStorage.getItem(pushKey())==='1')?' Activa los avisos para que te llegue el recordatorio.':''));
+    editing=null;
+  }catch(err){$('nError').textContent='Error: '+(err.code||err.message);}
+  finally{$('nSave').disabled=false;}
+};
 })();
 </script>
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
