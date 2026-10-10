@@ -64,6 +64,8 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .actions .submit{flex:1 1 100%}
+#sheet .actions .btn{flex:1 1 100%;min-height:50px;display:flex;align-items:center;justify-content:center}
+#sheet .actions .sep{flex:1 1 100%;height:1px;background:var(--line);margin:8px 0}
 .btn{flex:1;border:1px solid var(--line);background:none;color:var(--ink);border-radius:6px;padding:12px;font:inherit;font-weight:600;cursor:pointer;text-align:center;text-decoration:none}
 .btn.bad{color:var(--bad)}
 .wrap{padding-bottom:110px}
@@ -279,14 +281,16 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
   <div class="error" id="sError"></div>
   <div class="actions">
     <button class="submit" type="button" id="btnConfirm">Confirmar</button>
-    <button class="btn" type="button" id="btnHecho" hidden style="flex:1 1 100%;color:#8FB8FF;border-color:#8FB8FF">Marcar como realizado</button>
-    <button class="btn" type="button" id="btnEditOwn" hidden>Editar servicio</button>
-    <button class="btn" type="button" id="btnCamino" hidden style="flex:1 1 100%;color:#9FE3C1;border-color:#9FE3C1">📍 En camino</button>
+    <button class="btn" type="button" id="btnCamino" hidden style="color:#9FE3C1;border-color:#9FE3C1">📍 En camino</button>
     <a class="btn" id="btnIr" href="#" target="_blank" rel="noopener">Ir a la recogida</a>
     <a class="btn" id="btnRuta" href="#" target="_blank" rel="noopener">Ver recorrido</a>
-    <a class="btn" id="btnVerColab" href="#" target="_blank" rel="noopener" hidden style="flex:1 1 100%">📍 Ver dónde va el colaborador</a>
+    <a class="btn" id="btnVerColab" href="#" target="_blank" rel="noopener" hidden>📍 Ver dónde va el colaborador</a>
     <a class="btn" id="btnCall" href="#">Llamar</a>
+    <button class="btn" type="button" id="btnEditOwn" hidden>Editar servicio</button>
     <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
+    <div class="sep"></div>
+    <button class="btn" type="button" id="btnHecho" hidden style="color:#8FB8FF;border-color:#8FB8FF">Marcar como realizado</button>
+    <button class="btn" type="button" id="btnDeshacer" hidden style="color:var(--amber);border-color:var(--amber)">↩️ No estaba hecho: volver a confirmada</button>
     <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
     <button class="btn" type="button" id="btnOcultar" hidden>Quitar de mi lista</button>
     <button class="btn bad" type="button" id="btnDelete" hidden>Eliminar definitivamente</button>
@@ -791,7 +795,8 @@ function openSheet(r){
   $('aTaxi').value=r.taxi||'';$('aConductor').value=r.conductor||'';$('aNota').value=r.notaCliente||'';
   if(r.estado!=='confirmada'&&!r.taxi&&!r.conductor){const t=miTaxi();$('aTaxi').value=t.taxi||'';$('aConductor').value=t.nombre||'';}
   if(r.asignadoA&&r.asignadoA!==yo().uid&&r.estado==='confirmada'){$('sError').textContent='';}
-  $('btnHecho').hidden=r.estado!=='confirmada';
+  $('btnHecho').hidden=r.estado!=='confirmada';hechoArmed=false;$('btnHecho').textContent='Marcar como realizado';
+  $('btnDeshacer').hidden=r.estado!=='realizada';
   pintarBotonesMapa(r);
   $('btnConfirm').textContent=(r.estado==='confirmada'||r.estado==='realizada')?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
   $('aImporte').value=typeof r.importe==='number'?String(r.importe).replace('.',','):'';
@@ -1010,14 +1015,25 @@ $('btnCamino').onclick=()=>{
   pintarBotonesMapa(selected);
 };
 $('segStop').onclick=()=>pararSeg();
+let hechoArmed=false;
 $('btnHecho').onclick=async()=>{
   if(!selected)return;
+  // Doble toque para no marcarlo por error
+  if(!hechoArmed){hechoArmed=true;$('btnHecho').textContent='¿Realizado? Pulsa otra vez para confirmar';return;}
+  hechoArmed=false;$('btnHecho').textContent='Marcar como realizado';
   if(seg&&seg.id===selected.id)pararSeg(false);
   const imp=parseImporte($('aImporte').value);
   if($('aImporte').value.trim()&&imp===null){$('sError').textContent='El importe no es un número válido.';return;}
   try{
     await fdb.collection('reservas').doc(selected.id).update({estado:'realizada',...(imp!==null?{importe:imp}:{}),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
     $('sheet').close();selected=null;toast('Marcado como realizado. El cliente lo ve en sus Realizadas.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
+$('btnDeshacer').onclick=async()=>{
+  if(!selected)return;
+  try{
+    await fdb.collection('reservas').doc(selected.id).update({estado:'confirmada',ocultoAdmin:false,actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    $('sheet').close();selected=null;toast('Vuelve a estar confirmada en tu lista.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
 };
 $('btnOcultar').onclick=async()=>{
