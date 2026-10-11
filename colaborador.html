@@ -10,6 +10,7 @@
 <style>
 :root{--bg:#171A1F;--card:#1F242C;--line:#303742;--ink:#ECEFF3;--muted:#98A2B0;--acc:#6FA0F5;--acc-ink:#071A3A;--ok:#4CC38A;--warn:#E8A33D;--bad:#F07A6E}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
 .wrap{max-width:620px;margin:0 auto;padding:16px 16px 48px}
@@ -26,6 +27,15 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .submit{width:100%;background:var(--acc);color:var(--acc-ink);border:0;border-radius:8px;padding:14px;font:inherit;font-weight:700;cursor:pointer}
 .sec{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}
 .sec.new{color:var(--acc)}
+.tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:12px}
+.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;border-radius:9px;padding:11px 8px;cursor:pointer}
+.tabs button.on{background:var(--acc);color:var(--acc-ink)}
+.tabs .n{display:inline-block;min-width:1.4em;font-size:.78rem;border-radius:999px;padding:1px 6px;margin-left:4px;background:rgba(255,255,255,.12)}
+.tabs button.on .n{background:rgba(7,26,58,.18)}
+.mes{display:flex;justify-content:space-between;align-items:baseline;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:16px 0 8px}
+.mes b{font-weight:700}
+.mes span{color:var(--ok);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mes small{display:block;color:var(--muted);font-weight:400;font-size:.85rem}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
 .card.nuevo{border-color:var(--acc)}
 .card.old{opacity:.7}
@@ -93,6 +103,7 @@ dialog input,dialog select,dialog textarea{background:var(--bg)}
   <div class="me" id="me"></div>
   <div class="segbar" id="segBar" hidden><span id="segTxt"></span><button type="button" id="segStop">Parar</button></div>
   <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte cuando te pasen un servicio y para los recordatorios de tus servicios, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
+  <div class="tabs" id="tabs"><button type="button" data-tab="serv" class="on">Servicios</button><button type="button" data-tab="hechos">Realizados</button></div>
   <div id="list"><p class="empty">Cargando…</p></div>
 </div>
 <button class="fab" id="fab" type="button" hidden>＋ Añadir servicio</button>
@@ -354,7 +365,7 @@ function card(x,tipo){
             '<input type="text" id="mot-'+esc(x.id)+'" placeholder="Motivo (opcional): avería, retraso…" autocomplete="off">'+
             '<div class="row"><button class="b bad" data-devok="'+esc(x.id)+'">Confirmar devolución</button><button class="b" data-devno="1">No devolver</button></div></div>'
           :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
-    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
+    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>';
   }else if(x.estado==='cancelado'){
     h+='<div class="row"><span class="pill cancelado">Servicio anulado</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='rechazado'){
@@ -381,23 +392,55 @@ function cardPropio(x){
       (x.pase==='ofrecido'
         ?'<div class="row"><span class="pill pase">Pasado al compañero · esperando respuesta</span></div><div class="row"><button class="b bad" data-pret="'+esc(x.id)+'">Retirar (no pasárselo)</button></div>'
         :'<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button><button class="b" data-ppase="'+esc(x.id)+'" style="color:var(--acc);border-color:var(--acc)">'+(paseArmed===x.id?'¿Pasárselo? Pulsa otra vez':'🔁 Pasar al compañero')+'</button></div>');
-  }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div>';
+  }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>'+
+    '<div class="row"><button class="b" data-pundo="'+esc(x.id)+'" style="color:var(--warn);border-color:var(--warn)">↩️ No estaba hecho</button></div>';
   return h+'</div>';
 }
 function pintar(x,tipo){return x._own?cardPropio(x):card(x,tipo);}
+let tab='serv';
+const eurTxt=n=>(Math.round((n||0)*100)/100).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 function render(){
   const now=Date.now()-3*3600000;
   const nuevos=items.filter(x=>x.estado==='ofrecido').sort((a,b)=>ms(a)-ms(b));
   const acept=items.filter(x=>x.estado==='aceptado').concat(propios.filter(x=>x.estado!=='realizada'&&x.pase!=='aceptado')).sort((a,b)=>ms(a)-ms(b));
   const avisos=items.filter(x=>x.estado==='cancelado'&&!x.ocultoColab&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
-  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).concat(propios.filter(x=>(x.estado==='realizada'||x.pase==='aceptado')&&!x.oculto)).sort((a,b)=>ms(b)-ms(a)).slice(0,15);
+  const pasados=propios.filter(x=>x.pase==='aceptado'&&!x.oculto&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
+  // Realizados: todo lo hecho, el que te pasaron y los tuyos (es tu archivo, no se quita)
+  const hechos=items.filter(x=>x.estado==='hecho').concat(propios.filter(x=>x.estado==='realizada')).sort((a,b)=>ms(b)-ms(a));
+  // Pestañas con contador
+  const tb=$('tabs');
+  if(tb){
+    const nServ=nuevos.length+acept.length;
+    tb.innerHTML='<button type="button" data-tab="serv"'+(tab==='serv'?' class="on"':'')+'>Servicios'+(nServ?'<span class="n">'+nServ+'</span>':'')+'</button>'+
+      '<button type="button" data-tab="hechos"'+(tab==='hechos'?' class="on"':'')+'>Realizados'+(hechos.length?'<span class="n">'+hechos.length+'</span>':'')+'</button>';
+  }
+  $('fab').hidden=tab!=='serv'||$('appView').hidden;
   let h='';
+  if(tab==='hechos'){
+    if(!hechos.length){$('list').innerHTML='<p class="empty">Aquí irán los servicios que marques como hechos, agrupados por mes.</p>';return;}
+    const grupos=[];const idx={};
+    for(const x of hechos){
+      const d=new Date(ms(x));const k=d.getFullYear()+'-'+d.getMonth();
+      if(!(k in idx)){idx[k]=grupos.length;grupos.push({nombre:(t=>t.charAt(0).toUpperCase()+t.slice(1))(d.toLocaleDateString('es-ES',{month:'long',year:'numeric'})),lista:[],total:0});}
+      const g=grupos[idx[k]];g.lista.push(x);if(typeof x.importe==='number')g.total+=x.importe;
+    }
+    for(const g of grupos){
+      const nP=g.lista.filter(x=>x._own).length,nC=g.lista.length-nP;
+      h+='<div class="mes"><b>'+esc(g.nombre)+'<small>'+g.lista.length+(g.lista.length===1?' servicio':' servicios')+' · '+nP+(nP===1?' tuyo':' tuyos')+', '+nC+(nC===1?' que te pasaron':' que te pasaron')+'</small></b><span>'+esc(eurTxt(g.total))+'</span></div>'+
+        g.lista.map(x=>pintar(x,'old')).join('');
+    }
+    $('list').innerHTML=h;return;
+  }
   if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
   if(acept.length)h+='<div class="sec">Próximos servicios</div>'+acept.map(x=>pintar(x,'')).join('');
+  if(pasados.length)h+='<div class="sec">Pasados a tu compañero</div>'+pasados.map(x=>pintar(x,'old')).join('');
   if(avisos.length)h+='<div class="sec">Cancelados</div>'+avisos.map(x=>card(x,'old')).join('');
-  if(hechos.length)h+='<div class="sec">Hechos y pasados</div>'+hechos.map(x=>pintar(x,'old')).join('');
-  $('list').innerHTML=h||'<p class="empty">No tienes servicios. Cuando te pasen uno, sonará un aviso. También puedes añadir los tuyos con el botón de abajo.</p>';
+  $('list').innerHTML=h||'<p class="empty">No tienes servicios pendientes. Cuando te pasen uno, sonará un aviso. También puedes añadir los tuyos con el botón de abajo. Los hechos están en <b>Realizados</b>.</p>';
 }
+$('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('[data-tab]');if(!b||b.dataset.tab===tab)return;
+  tab=b.dataset.tab;render();window.scrollTo(0,0);
+});
 
 /* ---- acciones ---- */
 async function responder(x,estado,extra){
@@ -430,6 +473,12 @@ $('list').addEventListener('change',async e=>{
 $('list').addEventListener('click',async e=>{
   const pe=e.target.closest('[data-pedit]'),pd=e.target.closest('[data-pdone]'),ph=e.target.closest('[data-phide]');
   if(pe){abrirNuevo(propios.find(x=>x.id===pe.dataset.pedit));return;}
+  const pu=e.target.closest('[data-pundo]');
+  if(pu){
+    try{await fdb.collection('propiosColab').doc(pu.dataset.pundo).update({estado:'confirmada',oculto:false,actualizadoEn:ts()});toast('Vuelve a tus próximos servicios.');}
+    catch(err){toast('Error: '+(err.code||err.message));}
+    return;
+  }
   const pp=e.target.closest('[data-ppase]'),pr=e.target.closest('[data-pret]');
   if(pp){
     const x=propios.find(i=>i.id===pp.dataset.ppase);if(!x)return;
@@ -456,7 +505,7 @@ $('list').addEventListener('click',async e=>{
     const v=String(($('pimp-'+x.id)||{}).value||'').trim();const imp=parseImporte(v);
     if(v&&imp===null){toast('El importe no es un número válido.');return;}
     pd.disabled=true;
-    try{await fdb.collection('propiosColab').doc(x.id).update({estado:'realizada',importe:imp,actualizadoEn:ts()});toast('Marcado como hecho.');}
+    try{await fdb.collection('propiosColab').doc(x.id).update({estado:'realizada',importe:imp,actualizadoEn:ts()});toast('Marcado como hecho. Lo tienes en Realizados.');}
     catch(err){pd.disabled=false;toast('Error: '+(err.code||err.message));}
     return;
   }
