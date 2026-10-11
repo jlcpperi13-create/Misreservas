@@ -290,6 +290,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
     <a class="btn" id="btnGcal" href="#" target="_blank" rel="noopener" hidden>Añadir a Google Calendar</a>
     <div class="sep"></div>
     <button class="btn" type="button" id="btnHecho" hidden style="color:#8FB8FF;border-color:#8FB8FF">Marcar como realizado</button>
+    <button class="btn" type="button" id="btnDevPase" hidden style="color:#8FB8FF;border-color:#8FB8FF">↩️ Devolver al compañero</button>
     <button class="btn" type="button" id="btnDeshacer" hidden style="color:var(--amber);border-color:var(--amber)">↩️ No estaba hecho: volver a confirmada</button>
     <button class="btn bad" type="button" id="btnCancel">Cancelar reserva</button>
     <button class="btn" type="button" id="btnOcultar" hidden>Quitar de mi lista</button>
@@ -797,6 +798,8 @@ function openSheet(r){
   if(r.asignadoA&&r.asignadoA!==yo().uid&&r.estado==='confirmada'){$('sError').textContent='';}
   $('btnHecho').hidden=r.estado!=='confirmada';hechoArmed=false;$('btnHecho').textContent='Marcar como realizado';
   $('btnDeshacer').hidden=r.estado!=='realizada';
+  devPaseArmed=false;$('btnDevPase').hidden=!(r.fuente==='colaborador'&&r.estado==='confirmada');
+  $('btnDevPase').textContent='↩️ Devolver a '+(r.deColaboradorNombre||'el compañero');
   pintarBotonesMapa(r);
   $('btnConfirm').textContent=(r.estado==='confirmada'||r.estado==='realizada')?'Guardar cambios':r.estado==='cancelada'?'Reactivar y confirmar':'Confirmar';
   $('aImporte').value=typeof r.importe==='number'?String(r.importe).replace('.',','):'';
@@ -1028,6 +1031,28 @@ $('btnHecho').onclick=async()=>{
     await fdb.collection('reservas').doc(selected.id).update({estado:'realizada',...(imp!==null?{importe:imp}:{}),actualizadoEn:firebase.firestore.FieldValue.serverTimestamp()});
     $('sheet').close();selected=null;toast('Marcado como realizado. El cliente lo ve en sus Realizadas.');
   }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+};
+/* ---- devolver al colaborador un servicio que él te pasó ---- */
+let devPaseArmed=false;
+$('btnDevPase').onclick=async()=>{
+  if(!selected||selected.fuente!=='colaborador')return;
+  const r=selected;
+  if(r.colaboradorUid&&['ofrecido','aceptado'].includes(r.cesion)){$('sError').textContent='Se lo has pasado a otro colaborador. Retíraselo antes de devolverlo.';return;}
+  if(!devPaseArmed){devPaseArmed=true;$('btnDevPase').textContent='¿Devolverlo? Pulsa otra vez';$('sError').textContent='Vuelve a ser suyo con sus datos y sale de tu lista.';return;}
+  devPaseArmed=false;$('btnDevPase').disabled=true;
+  try{
+    if(seg&&seg.id===r.id)pararSeg(true);
+    const b=fdb.batch();
+    b.update(fdb.collection('pases').doc(r.id),{estado:'devuelto',respondidoEn:firebase.firestore.FieldValue.serverTimestamp()});
+    b.update(fdb.collection('propiosColab').doc(r.id),{pase:'devuelto'});
+    b.delete(fdb.collection('ubicaciones').doc(r.id));
+    b.delete(fdb.collection('reservas').doc(r.id));
+    await b.commit();
+    if(r.gcalId&&gConnected()){try{await gFetch('DELETE','/'+encodeURIComponent(r.gcalId));}catch(e){}}
+    avisar('paseDev',r.id);
+    $('sheet').close();selected=null;toast('Devuelto. Vuelve a ser de '+(r.deColaboradorNombre||'tu compañero')+'.');
+  }catch(err){$('sError').textContent='Error: '+(err.code||err.message);}
+  finally{$('btnDevPase').disabled=false;}
 };
 $('btnDeshacer').onclick=async()=>{
   if(!selected)return;

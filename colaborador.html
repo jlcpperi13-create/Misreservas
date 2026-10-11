@@ -57,6 +57,9 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .pill.propio{background:rgba(232,163,61,.18);color:var(--warn)}
 .pill.pase{background:rgba(111,160,245,.18);color:var(--acc)}
 .nota{margin-top:8px;font-size:.88rem;color:var(--warn)}
+.recrow{display:flex;align-items:center;gap:8px;margin-top:10px}
+.recrow span{flex:none;color:var(--muted);font-size:.9rem}
+.recrow select{flex:1;min-height:44px;padding:8px 10px}
 select,textarea{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:12px 13px;font:inherit;min-height:48px}
 textarea{min-height:64px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -74,7 +77,7 @@ dialog input,dialog select,dialog textarea{background:var(--bg)}
 <div id="loginView" hidden>
   <div class="loginCard">
     <div class="brand">Mis<span>Reservas</span> · Colaboradores</div>
-    <p class="sub">Entra con la cuenta que te ha dado el taxista.</p>
+    <p class="sub">Entra con la cuenta que te ha dado tu compañero.</p>
     <div class="field"><label for="lEmail">Correo</label><input type="email" id="lEmail" autocomplete="username"></div>
     <div class="field"><label for="lPass">Contraseña</label><input type="password" id="lPass" autocomplete="current-password"></div>
     <div class="error" id="lError"></div>
@@ -276,9 +279,9 @@ fauth.onAuthStateChanged(async u=>{
   unsubP=fdb.collection('propiosColab').where('uid','==',u.uid).onSnapshot(s=>{
     propios=s.docs.map(d=>({id:d.id,...d.data(),_own:true}));
     if(pasePrev){
-      const ch=propios.find(x=>(x.pase==='aceptado'||x.pase==='rechazado')&&pasePrev[x.id]==='ofrecido');
+      const ch=propios.find(x=>((x.pase==='aceptado'||x.pase==='rechazado')&&pasePrev[x.id]==='ofrecido')||(x.pase==='devuelto'&&pasePrev[x.id]==='aceptado'));
       if(ch){beep();try{navigator.vibrate&&navigator.vibrate([300,150,300]);}catch(e){}
-        toast(ch.pase==='aceptado'?'Tu compañero ha aceptado tu servicio de las '+ch.horaTexto+'.':'Tu compañero no puede hacer tu servicio de las '+ch.horaTexto+'. Vuelve a ser tuyo.');}
+        toast(ch.pase==='devuelto'?'Tu compañero te ha devuelto el servicio de las '+ch.horaTexto+'. Vuelve a ser tuyo.':ch.pase==='aceptado'?'Tu compañero ha aceptado tu servicio de las '+ch.horaTexto+'.':'Tu compañero no puede hacer tu servicio de las '+ch.horaTexto+'. Vuelve a ser tuyo.');}
     }
     pasePrev={};propios.forEach(x=>{pasePrev[x.id]=x.pase||'';});
     render();
@@ -321,6 +324,7 @@ async function cargarPrivados(){
 }
 
 /* ---- pintar ---- */
+const AVISO_OPTS=[[0, "Sin aviso"], [10, "10 min antes"], [15, "15 min antes"], [30, "30 min antes"], [45, "45 min antes"], [60, "1 hora antes"], [90, "1 h 30 min antes"], [120, "2 horas antes"], [180, "3 horas antes"], [240, "4 horas antes"]];
 const ms=x=>x.fechaHora&&x.fechaHora.toMillis?x.fechaHora.toMillis():0;
 function dia(t){const d=new Date(t);d.setHours(0,0,0,0);const h=new Date();h.setHours(0,0,0,0);const n=Math.round((d-h)/86400000);
   if(n===0)return 'Hoy';if(n===1)return 'Mañana';if(n===-1)return 'Ayer';return d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});}
@@ -336,13 +340,17 @@ function card(x,tipo){
     else if(p.error)h+='<div class="meta">No se pudieron cargar los datos del cliente. Cierra y vuelve a abrir la app.</div>';
     else if(p.nombre||p.telefono||p.notas)h+='<div class="cli">'+(p.nombre?'<b>'+esc(p.nombre)+'</b>':'')+(p.telefono?'<div>'+esc(p.telefono)+'</div>':'')+(p.notas?'<div>'+esc(p.notas)+'</div>':'')+'</div>';
     if(x.estado==='aceptado'){
+      const av=x.avisoColab;
+      h+='<div class="recrow"><span>🔔 Recordatorio</span><select data-rec="'+esc(x.id)+'">'+
+        (av==null?'<option value="" selected>El que venía puesto</option>':'')+
+        AVISO_OPTS.map(o=>'<option value="'+o[0]+'"'+(av!=null&&+av===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>';
       const tel=String(p.telefono||'').replace(/[^\d+]/g,'');
       h+='<div class="imp"><input type="text" inputmode="decimal" placeholder="Importe cobrado (€)" id="imp-'+esc(x.id)+'"><button class="b ok" data-done="'+esc(x.id)+'">Hecho</button></div>'+
         (tel?'<div class="row"><a class="b" href="tel:'+esc(tel)+'">Llamar al cliente</a></div>':'')+
         '<div class="row"><a class="b" href="'+esc(mapsIr(x.origen))+'" target="_blank" rel="noopener">Ir a la recogida</a><a class="b" href="'+esc(mapsRuta(x.origen,x.destino))+'" target="_blank" rel="noopener">Ver recorrido</a></div>'+
         (p.nombre!==undefined||p.telefono!==undefined?'<div class="row"><button class="b" data-seg="'+esc(x.id)+'" style="color:#9FE3C1;border-color:#9FE3C1">'+((seg&&seg.id===x.id)?'⏹ Dejar de compartir mi ubicación':'📍 En camino (compartir mi ubicación)')+'</button></div>':'')+
         (devArmed===x.id
-          ?'<div class="dev"><p>Se lo devuelves al taxista para que lo haga él o se lo pase a otro. Dejarás de ver los datos del cliente.</p>'+
+          ?'<div class="dev"><p>Se lo devuelves a tu compañero para que lo haga él o se lo pase a otro. Dejarás de ver los datos del cliente.</p>'+
             '<input type="text" id="mot-'+esc(x.id)+'" placeholder="Motivo (opcional): avería, retraso…" autocomplete="off">'+
             '<div class="row"><button class="b bad" data-devok="'+esc(x.id)+'">Confirmar devolución</button><button class="b" data-devno="1">No devolver</button></div></div>'
           :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
@@ -360,6 +368,7 @@ function cardPropio(x){
   let h='<div class="card'+(hecho?' old':'')+'"><div class="top"><span class="when">'+esc(x.horaTexto)+'</span><span class="day">'+esc(dia(ms(x)))+'</span></div>'+
     '<div class="route">'+esc(x.origen)+' → '+esc(x.destino)+'</div><div class="meta"><span class="pill propio">Propio</span> '+esc(pax)+(!hecho&&+x.aviso?' · 🔔 '+esc(+x.aviso>=60?(x.aviso/60).toLocaleString('es-ES')+' h':x.aviso+' min')+' antes':'')+'</div>';
   if(x.pase==='rechazado')h+='<div class="nota">↩️ Tu compañero no lo ha aceptado: sigue siendo tuyo.</div>';
+  if(x.pase==='devuelto')h+='<div class="nota">↩️ Tu compañero te lo ha devuelto: vuelve a ser tuyo.</div>';
   if(x.pase==='aceptado'){
     return h+'<div class="row"><span class="pill pase">Pasado al compañero · aceptado</span></div><div class="row"><button class="b" data-phide="'+esc(x.id)+'">Quitar de la lista</button></div></div>';
   }
@@ -403,6 +412,21 @@ async function responder(x,estado,extra){
   await b.commit();
   avisar('cesion',x.reservaId||x.id);
 }
+// Cambiar el recordatorio de un servicio que te han pasado (solo afecta a tu aviso)
+$('list').addEventListener('change',async e=>{
+  const sel=e.target.closest('[data-rec]');if(!sel||sel.value==='')return;
+  const x=items.find(i=>i.id===sel.dataset.rec);if(!x)return;
+  const v=+sel.value;sel.disabled=true;
+  try{
+    const b=fdb.batch();
+    b.update(fdb.collection('cesiones').doc(x.id),{avisoColab:v});
+    b.update(fdb.collection('reservas').doc(x.reservaId||x.id),{avisoColab:v});
+    await b.commit();
+    toast(v?'Recordatorio cambiado: te avisará '+sel.options[sel.selectedIndex].text+'.':'Sin recordatorio para este servicio.');
+    if(v&&!(localStorage.getItem(pushKey())==='1'))setTimeout(()=>toast('Activa los avisos para que te llegue el recordatorio.'),2500);
+  }catch(err){toast('Error: '+(err.code||err.message));render();}
+  finally{sel.disabled=false;}
+});
 $('list').addEventListener('click',async e=>{
   const pe=e.target.closest('[data-pedit]'),pd=e.target.closest('[data-pdone]'),ph=e.target.closest('[data-phide]');
   if(pe){abrirNuevo(propios.find(x=>x.id===pe.dataset.pedit));return;}
@@ -458,7 +482,7 @@ $('list').addEventListener('click',async e=>{
     const motivo=String(($('mot-'+x.id)||{}).value||'').trim().slice(0,200);
     dok.disabled=true;
     if(seg&&seg.id===(x.reservaId||x.id))pararSeg(false);
-    try{await responder(x,'devuelto',{motivo,taxi:'',conductor:''});devArmed=null;delete privado[x.id];toast('Servicio devuelto. El taxista ya lo sabe.');}
+    try{await responder(x,'devuelto',{motivo,taxi:'',conductor:''});devArmed=null;delete privado[x.id];toast('Servicio devuelto. Tu compañero ya lo sabe.');}
     catch(err){toast('Error: '+(err.code||err.message));render();}
     return;
   }
