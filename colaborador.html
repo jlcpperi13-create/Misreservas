@@ -174,7 +174,7 @@ async function activarAvisos(interactivo){
   try{
     if(interactivo){const p=await Notification.requestPermission();if(p!=='granted'){toast('Sin permiso de avisos. Actívalo en los ajustes de notificaciones del móvil.');return false;}}
     else if(Notification.permission!=='granted')return false;
-    const reg=await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready;
+    const reg=await window.swPropio();
     const tok=await appFb.messaging().getToken({vapidKey:VAPID,serviceWorkerRegistration:reg});
     if(!tok)throw new Error('sin token');
     await fdb.collection('tokens').doc(tok).set({uid:fauth.currentUser.uid,app:'colaborador',dispositivo:navigator.userAgent.slice(0,120),actualizado:firebase.firestore.FieldValue.serverTimestamp()});
@@ -628,7 +628,25 @@ $('nSave').onclick=async()=>{
 };
 })();
 </script>
-<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
+<script>
+// Cada app tiene su propio receptor de avisos, dentro de su zona. Así Android le asigna
+// las notificaciones (y el punto del icono) a esta app y no al navegador.
+window.SW_SCOPE='./colaborador.html';
+window.swPropio=async function(){
+  const reg=await navigator.serviceWorker.register('sw.js',{scope:window.SW_SCOPE});
+  if(!reg.active){
+    await new Promise(res=>{const w=reg.installing||reg.waiting;if(!w)return res();
+      w.addEventListener('statechange',()=>{if(w.state==='activated')res();});setTimeout(res,8000);});
+  }
+  return reg;
+};
+if('serviceWorker' in navigator){
+  window.swPropio().then(()=>navigator.serviceWorker.getRegistrations()).then(rs=>{
+    // Quitar el receptor antiguo, que era común a toda la web y hacía que los avisos fueran a Chrome
+    rs.forEach(r=>{try{if(/\/Misreservas\/$/.test(new URL(r.scope).pathname))r.unregister();}catch(e){}});
+  }).catch(()=>{});
+}
+</script>
 <script>
 // Al abrir la app: quitar la marca del icono y las notificaciones de ESTA app (ya las has visto)
 (function(){
@@ -636,7 +654,7 @@ $('nSave').onclick=async()=>{
     if(document.visibilityState!=='visible')return;
     try{if('clearAppBadge' in navigator)navigator.clearAppBadge().catch(()=>{});}catch(e){}
     if(!('serviceWorker' in navigator))return;
-    navigator.serviceWorker.getRegistration().then(r=>{if(!r||!r.getNotifications)return;
+    navigator.serviceWorker.getRegistration(window.SW_SCOPE).then(r=>{if(!r||!r.getNotifications)return;
       return r.getNotifications().then(ns=>ns.forEach(n=>{const l=String((n.data&&n.data.link)||'');if(l.includes('colaborador'))n.close();}));
     }).catch(()=>{});
   }
