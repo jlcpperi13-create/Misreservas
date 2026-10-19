@@ -1,6 +1,6 @@
 // Service worker de MisReservas
 // Cada vez que subas cambios, sube también este número (v1 -> v2 -> v3...)
-const CACHE = 'misreservas-v28';
+const CACHE = 'misreservas-v29';
 const ARCHIVOS = ['./', './index.html', './admin.html', './firebase-config.js',
   './manifest.json', './manifest-panel.json', './colaborador.html', './manifest-colab.json', './colab-192.png', './colab-512.png',
   './cliente-192.png', './cliente-512.png', './panel-192.png', './panel-512.png'];
@@ -35,8 +35,18 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(d.title || 'MisReservas', {
     body: d.body || '', icon: icono, badge: icono, tag: d.tag || undefined, renotify: true,
     requireInteraction: true, vibrate: [300, 150, 300], data: { link }
-  }));
+  }).then(() => marcarIcono()));
 });
+// Marca en el icono de la app (número de avisos sin ver) en los móviles que lo admiten.
+// En Android el punto del icono lo pone el propio sistema mientras haya notificaciones sin quitar.
+async function marcarIcono() {
+  try {
+    if (!self.navigator || !('setAppBadge' in self.navigator)) return;
+    const n = (await self.registration.getNotifications()).length;
+    await self.navigator.setAppBadge(n || undefined);
+  } catch (err) {}
+}
+self.addEventListener('notificationclose', () => { marcarIcono(); });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const link = (e.notification.data && e.notification.data.link) || './';

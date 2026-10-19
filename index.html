@@ -567,5 +567,20 @@ $('bookingForm').addEventListener('submit',async e=>{
 })();
 </script>
 <script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});</script>
+<script>
+// Al abrir la app: quitar la marca del icono y las notificaciones de ESTA app (ya las has visto)
+(function(){
+  function visto(){
+    if(document.visibilityState!=='visible')return;
+    try{if('clearAppBadge' in navigator)navigator.clearAppBadge().catch(()=>{});}catch(e){}
+    if(!('serviceWorker' in navigator))return;
+    navigator.serviceWorker.getRegistration().then(r=>{if(!r||!r.getNotifications)return;
+      return r.getNotifications().then(ns=>ns.forEach(n=>{const l=String((n.data&&n.data.link)||'');if(!l.includes('admin')&&!l.includes('colaborador'))n.close();}));
+    }).catch(()=>{});
+  }
+  visto();
+  document.addEventListener('visibilitychange',visto);
+})();
+</script>
 </body>
 </html>
