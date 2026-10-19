@@ -4,7 +4,7 @@
   "short_name": "MisReservas",
   "description": "Reserva tu taxi y consulta el estado de tus reservas",
   "start_url": "./index.html",
-  "scope": "./",
+  "scope": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#171A1F",
