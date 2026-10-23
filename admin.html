@@ -312,6 +312,7 @@ select{width:100%;background:var(--card);border:1px solid var(--line);color:var(
 // Sesión propia de esta app, independiente de las otras apps de MisReservas en el mismo móvil
 const appFb=firebase.apps.find(a=>a.name==='panel')||firebase.initializeApp(firebaseConfig,'panel');
 const fauth=appFb.auth(), fdb=appFb.firestore();
+  try{fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(e){}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const CESION={ofrecido:'sin responder',aceptado:'aceptado',rechazado:'rechazado',devuelto:'devuelto',hecho:'hecho',cancelado:'cancelado'};
