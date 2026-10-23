@@ -1,6 +1,6 @@
 // Service worker de MisReservas
 // Cada vez que subas cambios, sube también este número (v1 -> v2 -> v3...)
-const CACHE = 'misreservas-v31';
+const CACHE = 'misreservas-v32';
 const ARCHIVOS = ['./', './index.html', './admin.html', './firebase-config.js',
   './manifest.json', './manifest-panel.json', './colaborador.html', './manifest-colab.json', './colab-192.png', './colab-512.png',
   './cliente-192.png', './cliente-512.png', './panel-192.png', './panel-512.png'];
@@ -13,16 +13,35 @@ self.addEventListener('activate', e => {
     .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
-// Primero la red (siempre la versión nueva); si no hay conexión, la copia guardada.
-// Solo archivos propios: Firebase va siempre directo a internet.
+// Archivos propios: red con límite de 3 s; si tarda, la copia guardada
+// (la versión nueva se guarda igual para la próxima vez).
+// Firebase de gstatic (versión fija 9.23.0): copia guardada primero.
+// Los datos (Firestore, avisos, Google) siguen yendo siempre directos a internet.
+const FIREBASE_JS = /^https:\/\/www\.gstatic\.com\/firebasejs\/9\.23\.0\//;
+function guardar(req, r) {
+  if (r && (r.ok || r.type === 'opaque')) {
+    const copia = r.clone();
+    caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});
+  }
+  return r;
+}
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
-  e.respondWith(
-    fetch(e.request)
-      .then(r => { const copia = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copia)); return r; })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }))
-  );
+  if (FIREBASE_JS.test(url.href)) {
+    e.respondWith(caches.match(e.request).then(c => c || fetch(e.request).then(r => guardar(e.request, r))));
+    return;
+  }
+  if (url.origin !== self.location.origin) return;
+  const red = fetch(e.request).then(r => guardar(e.request, r));
+  e.waitUntil(red.catch(() => {}));
+  e.respondWith(new Promise(resolve => {
+    let hecho = false;
+    const copia = () => caches.match(e.request, { ignoreSearch: true });
+    const t = setTimeout(() => copia().then(c => { if (c && !hecho) { hecho = true; resolve(c); } }), 3000);
+    red.then(r => { if (!hecho) { hecho = true; clearTimeout(t); resolve(r); } })
+       .catch(() => copia().then(c => { if (!hecho) { hecho = true; clearTimeout(t); resolve(c || Response.error()); } }));
+  }));
 });
 
 // ---- Avisos push: se muestran aunque la app esté cerrada ----
