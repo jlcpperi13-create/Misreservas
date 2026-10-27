@@ -149,7 +149,7 @@ const fauth=appFb.auth(), fdb=appFb.firestore();
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ts=()=>firebase.firestore.FieldValue.serverTimestamp();
-let me=null, items=[], propios=[], unsubP=null, editing=null, delArmed=false, paseArmed=null, pasePrev=null, privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
+let borrarArmed=null, me=null, items=[], propios=[], unsubP=null, editing=null, delArmed=false, paseArmed=null, pasePrev=null, privado={}, unsub=null, known=null, audioCtx=null, rejArmed=null, devArmed=null;
 
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,5000);}
 function unlockAudio(){try{if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}catch(e){}}
@@ -365,7 +365,8 @@ function card(x,tipo){
             '<input type="text" id="mot-'+esc(x.id)+'" placeholder="Motivo (opcional): avería, retraso…" autocomplete="off">'+
             '<div class="row"><button class="b bad" data-devok="'+esc(x.id)+'">Confirmar devolución</button><button class="b" data-devno="1">No devolver</button></div></div>'
           :'<div class="row"><button class="b bad" data-dev="'+esc(x.id)+'">Devolver servicio</button></div>');
-    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>';
+    }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>'+
+      '<div class="row"><button class="b bad" data-hide="'+esc(x.id)+'">'+(borrarArmed===x.id?'¿Quitar? Pulsa otra vez':'🗑 Quitar de la lista')+'</button></div>';
   }else if(x.estado==='cancelado'){
     h+='<div class="row"><span class="pill cancelado">Servicio anulado</span></div><div class="row"><button class="b" data-hide="'+esc(x.id)+'">Quitar de la lista</button></div>';
   }else if(x.estado==='rechazado'){
@@ -393,7 +394,8 @@ function cardPropio(x){
         ?'<div class="row"><span class="pill pase">Pasado al compañero · esperando respuesta</span></div><div class="row"><button class="b bad" data-pret="'+esc(x.id)+'">Retirar (no pasárselo)</button></div>'
         :'<div class="row"><button class="b" data-pedit="'+esc(x.id)+'">Editar</button><button class="b" data-ppase="'+esc(x.id)+'" style="color:var(--acc);border-color:var(--acc)">'+(paseArmed===x.id?'¿Pasárselo? Pulsa otra vez':'🔁 Pasar al compañero')+'</button></div>');
   }else h+='<div class="row"><span class="pill hecho">Hecho'+(typeof x.importe==='number'?' · '+esc(x.importe.toLocaleString('es-ES',{minimumFractionDigits:2}))+' €':'')+'</span></div>'+
-    '<div class="row"><button class="b" data-pundo="'+esc(x.id)+'" style="color:var(--warn);border-color:var(--warn)">↩️ No estaba hecho</button></div>';
+    '<div class="row"><button class="b" data-pundo="'+esc(x.id)+'" style="color:var(--warn);border-color:var(--warn)">↩️ No estaba hecho</button>'+
+    '<button class="b bad" data-pdel="'+esc(x.id)+'">'+(borrarArmed===x.id?'¿Borrar? Pulsa otra vez':'🗑 Borrar')+'</button></div>';
   return h+'</div>';
 }
 function pintar(x,tipo){return x._own?cardPropio(x):card(x,tipo);}
@@ -406,7 +408,7 @@ function render(){
   const avisos=items.filter(x=>x.estado==='cancelado'&&!x.ocultoColab&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
   const pasados=propios.filter(x=>x.pase==='aceptado'&&!x.oculto&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
   // Realizados: todo lo hecho, el que te pasaron y los tuyos (es tu archivo, no se quita)
-  const hechos=items.filter(x=>x.estado==='hecho').concat(propios.filter(x=>x.estado==='realizada')).sort((a,b)=>ms(b)-ms(a));
+  const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).concat(propios.filter(x=>x.estado==='realizada'&&!x.oculto)).sort((a,b)=>ms(b)-ms(a));
   // Pestañas con contador
   const tb=$('tabs');
   if(tb){
@@ -473,6 +475,15 @@ $('list').addEventListener('change',async e=>{
 $('list').addEventListener('click',async e=>{
   const pe=e.target.closest('[data-pedit]'),pd=e.target.closest('[data-pdone]'),ph=e.target.closest('[data-phide]');
   if(pe){abrirNuevo(propios.find(x=>x.id===pe.dataset.pedit));return;}
+  const pdel=e.target.closest('[data-pdel]');
+  if(pdel){
+    const id=pdel.dataset.pdel;
+    if(borrarArmed!==id){borrarArmed=id;render();setTimeout(()=>{if(borrarArmed===id){borrarArmed=null;render();}},5000);return;}
+    borrarArmed=null;pdel.disabled=true;
+    try{await fdb.collection('propiosColab').doc(id).delete();toast('Servicio borrado.');}
+    catch(err){pdel.disabled=false;toast('Error: '+(err.code||err.message));}
+    return;
+  }
   const pu=e.target.closest('[data-pundo]');
   if(pu){
     try{await fdb.collection('propiosColab').doc(pu.dataset.pundo).update({estado:'confirmada',oculto:false,actualizadoEn:ts()});toast('Vuelve a tus próximos servicios.');}
@@ -511,6 +522,9 @@ $('list').addEventListener('click',async e=>{
   }
   const hd=e.target.closest('[data-hide]');
   if(hd){
+    const x=items.find(i=>i.id===hd.dataset.hide);
+    if(x&&x.estado==='hecho'&&borrarArmed!==x.id){const id=x.id;borrarArmed=id;render();setTimeout(()=>{if(borrarArmed===id){borrarArmed=null;render();}},5000);return;}
+    borrarArmed=null;
     try{await fdb.collection('cesiones').doc(hd.dataset.hide).update({ocultoColab:true});toast('Quitado de la lista.');}
     catch(err){toast('Error: '+(err.code||err.message));}
     return;
