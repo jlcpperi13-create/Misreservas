@@ -32,6 +32,9 @@ input{width:100%;background:var(--card);border:1px solid var(--line);color:var(-
 .tabs button.on{background:var(--acc);color:var(--acc-ink)}
 .tabs .n{display:inline-block;min-width:1.4em;font-size:.78rem;border-radius:999px;padding:1px 6px;margin-left:4px;background:rgba(255,255,255,.12)}
 .tabs button.on .n{background:rgba(7,26,58,.18)}
+.tabs .n.alerta{background:var(--warn);color:#2A1700}
+.dia{color:var(--ink);font-weight:700;font-size:.95rem;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.dia:first-letter{text-transform:uppercase}
 .mes{display:flex;justify-content:space-between;align-items:baseline;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:16px 0 8px}
 .mes b{font-weight:700}
 .mes span{color:var(--ok);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -103,7 +106,7 @@ dialog input,dialog select,dialog textarea{background:var(--bg)}
   <div class="me" id="me"></div>
   <div class="segbar" id="segBar" hidden><span id="segTxt"></span><button type="button" id="segStop">Parar</button></div>
   <div class="pushbar" id="pushBar" hidden><span>🔔 Activa los avisos para enterarte cuando te pasen un servicio y para los recordatorios de tus servicios, aunque tengas la app cerrada.</span><button type="button" id="pushBtn">Activar</button></div>
-  <div class="tabs" id="tabs"><button type="button" data-tab="serv" class="on">Servicios</button><button type="button" data-tab="hechos">Realizados</button></div>
+  <div class="tabs" id="tabs"><button type="button" data-tab="hoy" class="on">Hoy</button><button type="button" data-tab="prox">Próximas</button><button type="button" data-tab="hechos">Realizados</button></div>
   <div id="list"><p class="empty">Cargando…</p></div>
 </div>
 <button class="fab" id="fab" type="button" hidden>＋ Añadir servicio</button>
@@ -399,7 +402,7 @@ function cardPropio(x){
   return h+'</div>';
 }
 function pintar(x,tipo){return x._own?cardPropio(x):card(x,tipo);}
-let tab='serv';
+let tab='hoy';
 const eurTxt=n=>(Math.round((n||0)*100)/100).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 function render(){
   const now=Date.now()-3*3600000;
@@ -409,14 +412,17 @@ function render(){
   const pasados=propios.filter(x=>x.pase==='aceptado'&&!x.oculto&&ms(x)>=now).sort((a,b)=>ms(a)-ms(b));
   // Realizados: todo lo hecho, el que te pasaron y los tuyos (es tu archivo, no se quita)
   const hechos=items.filter(x=>x.estado==='hecho'&&!x.ocultoColab).concat(propios.filter(x=>x.estado==='realizada'&&!x.oculto)).sort((a,b)=>ms(b)-ms(a));
-  // Pestañas con contador
+  // Hoy = hasta el final de hoy (incluye lo de días pasados sin marcar como hecho); Próximas = de mañana en adelante
+  const fin=new Date();fin.setHours(24,0,0,0);const finHoy=fin.getTime();
+  const esHoy=x=>ms(x)<finHoy, esProx=x=>ms(x)>=finHoy;
+  const cuenta=f=>nuevos.filter(f).length+acept.filter(f).length;
+  // Pestañas con contador (en naranja si hay servicios nuevos por aceptar)
   const tb=$('tabs');
   if(tb){
-    const nServ=nuevos.length+acept.length;
-    tb.innerHTML='<button type="button" data-tab="serv"'+(tab==='serv'?' class="on"':'')+'>Servicios'+(nServ?'<span class="n">'+nServ+'</span>':'')+'</button>'+
-      '<button type="button" data-tab="hechos"'+(tab==='hechos'?' class="on"':'')+'>Realizados'+(hechos.length?'<span class="n">'+hechos.length+'</span>':'')+'</button>';
+    const bot=(id,txt,n,alerta)=>'<button type="button" data-tab="'+id+'"'+(tab===id?' class="on"':'')+'>'+txt+(n?'<span class="n'+(alerta?' alerta':'')+'">'+n+'</span>':'')+'</button>';
+    tb.innerHTML=bot('hoy','Hoy',cuenta(esHoy),nuevos.some(esHoy))+bot('prox','Próximas',cuenta(esProx),nuevos.some(esProx))+bot('hechos','Realizados',hechos.length,false);
   }
-  $('fab').hidden=tab!=='serv'||$('appView').hidden;
+  $('fab').hidden=tab==='hechos'||$('appView').hidden;
   let h='';
   if(tab==='hechos'){
     if(!hechos.length){$('list').innerHTML='<p class="empty">Aquí irán los servicios que marques como hechos, agrupados por mes.</p>';return;}
@@ -433,11 +439,22 @@ function render(){
     }
     $('list').innerHTML=h;return;
   }
-  if(nuevos.length)h+='<div class="sec new">Nuevos para ti</div>'+nuevos.map(x=>card(x,'nuevo')).join('');
-  if(acept.length)h+='<div class="sec">Próximos servicios</div>'+acept.map(x=>pintar(x,'')).join('');
-  if(pasados.length)h+='<div class="sec">Pasados a tu compañero</div>'+pasados.map(x=>pintar(x,'old')).join('');
-  if(avisos.length)h+='<div class="sec">Cancelados</div>'+avisos.map(x=>card(x,'old')).join('');
-  $('list').innerHTML=h||'<p class="empty">No tienes servicios pendientes. Cuando te pasen uno, sonará un aviso. También puedes añadir los tuyos con el botón de abajo. Los hechos están en <b>Realizados</b>.</p>';
+  const f=tab==='hoy'?esHoy:esProx;
+  const nv=nuevos.filter(f), ac=acept.filter(f), pa=pasados.filter(f), av=avisos.filter(f);
+  if(nv.length)h+='<div class="sec new">Nuevos para ti</div>'+nv.map(x=>card(x,'nuevo')).join('');
+  if(ac.length){
+    if(tab==='hoy')h+='<div class="sec">Servicios de hoy</div>'+ac.map(x=>pintar(x,'')).join('');
+    else{ // Próximas: agrupadas por día
+      let cur='';
+      for(const x of ac){const d=dia(ms(x));if(d!==cur){cur=d;h+='<div class="dia">'+esc(d)+'</div>';}h+=pintar(x,'');}
+    }
+  }
+  if(pa.length)h+='<div class="sec">Pasados a tu compañero</div>'+pa.map(x=>pintar(x,'old')).join('');
+  if(av.length)h+='<div class="sec">Cancelados</div>'+av.map(x=>card(x,'old')).join('');
+  const otra=tab==='hoy'?cuenta(esProx):cuenta(esHoy);
+  $('list').innerHTML=h||'<p class="empty">'+(tab==='hoy'?'No tienes servicios para hoy.':'No tienes servicios para los próximos días.')+
+    (otra?' Tienes '+otra+(otra===1?' servicio':' servicios')+' en <b>'+(tab==='hoy'?'Próximas':'Hoy')+'</b>.':'')+
+    ' Puedes añadir los tuyos con el botón de abajo.</p>';
 }
 $('tabs').addEventListener('click',e=>{
   const b=e.target.closest('[data-tab]');if(!b||b.dataset.tab===tab)return;
